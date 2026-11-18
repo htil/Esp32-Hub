@@ -1,0 +1,13 @@
+{
+  "name": "wrover-flash-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local Web Serial flasher + WebSocket hub for the Freenove ESP32-WROVER",
+  "scripts": {
+    "start": "node hub.js",
+    "dev": "VERBOSE=1 node hub.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

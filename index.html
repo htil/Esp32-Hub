@@ -1,0 +1,1918 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>WROVER Flash Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: console-style shell. Header bar, tabbed work area on the left, docked event log on the right; stacks on phones.
+   Deliberately single dark theme (Xbox palette). */
+:root{
+  --bg:#0a0b0a; --panel:#131513; --panel-2:#1a1d1a; --line:#272b27;
+  --fg:#e9ede9; --muted:#8c958c; --dim:#5d655d;
+  --green:#107C10; --green-hi:#52c552; --green-glow:rgba(16,124,16,.35);
+  --warn:#f0b43a; --err:#ff6262; --info:#72b7ff;
+  --f-display:"Chakra Petch","Segoe UI",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--fg)}
+body{font:14px/1.5 var(--f-body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 32px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:.02em}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--green-hi);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.label{font:600 11px/1 var(--f-display);text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding-block:14px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:12px}
+.orb{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#7be07b,var(--green) 55%,#0b4d0b);box-shadow:0 0 18px var(--green-glow)}
+.brand h1{font-size:20px;font-weight:700}
+.brand small{display:block;color:var(--muted);font:12px var(--f-mono)}
+.status{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;font:12px var(--f-mono);color:var(--muted);white-space:nowrap}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--dim)}
+.pill.ok i{background:var(--green-hi);box-shadow:0 0 8px var(--green-hi)}
+.pill.warn i{background:var(--warn)} .pill.bad i{background:var(--err)}
+
+.shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,400px);gap:18px;align-items:start}
+@media (max-width:980px){.shell{grid-template-columns:minmax(0,1fr)}}
+
+.tabs{display:flex;gap:2px;overflow-x:auto;margin-bottom:14px;border-bottom:1px solid var(--line)}
+.tab{background:none;border:0;padding:10px 16px;font:600 13px var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--green)}
+.tab:hover{color:var(--fg)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px}
+.stack{display:flex;flex-direction:column;gap:14px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+
+.btn{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:8px 14px;cursor:pointer;font-weight:500}
+.btn:hover:not(:disabled){border-color:var(--green-hi)}
+.btn.primary{background:var(--green);border-color:var(--green);color:#fff;font-weight:600}
+.btn.primary:hover:not(:disabled){background:#139113;box-shadow:0 0 14px var(--green-glow)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.sm{padding:4px 9px;font-size:12px}
+input[type=text],input[type=password],select{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:7px 10px;min-width:0}
+input[type=file]{font-size:12px;color:var(--muted);max-width:100%}
+
+/* stepper */
+.steps{display:grid;gap:0;counter-reset:s}
+.step{display:grid;grid-template-columns:34px minmax(0,1fr);gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.step:first-child{border-top:0}
+.dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font:600 12px var(--f-mono);color:var(--muted)}
+.step[data-s="run"] .dot{border-color:var(--warn);color:var(--warn)}
+.step[data-s="ok"] .dot{border-color:var(--green-hi);background:var(--green);color:#fff}
+.step[data-s="err"] .dot{border-color:var(--err);color:var(--err)}
+.step h3{font-size:15px;font-weight:600}
+.step p{margin:2px 0 0;color:var(--muted);max-width:65ch}
+.step code{font-family:var(--f-mono);font-size:12px;color:var(--green-hi)}
+.bar{height:8px;background:var(--bg);border:1px solid var(--line);border-radius:4px;overflow:hidden;margin-top:8px}
+.bar>div{height:100%;width:0;background:linear-gradient(90deg,var(--green),var(--green-hi));transition:width .2s}
+
+/* identity card */
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 14px;margin:0}
+.kv dt{color:var(--muted);font-size:12px}
+.kv dd{margin:0;font:13px var(--f-mono);overflow-wrap:anywhere}
+.kv dd.hi{color:var(--green-hi);font-weight:600}
+
+table{border-collapse:collapse;width:100%;font-size:13px}
+.tbl{overflow-x:auto}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font:600 11px var(--f-display);text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+td.mono{font-size:12px}
+.tag{display:inline-block;padding:1px 7px;border-radius:3px;font:600 10px var(--f-mono);text-transform:uppercase;letter-spacing:.06em;background:var(--panel-2);color:var(--muted);border:1px solid var(--line)}
+.tag.g{color:var(--green-hi);border-color:#1f4d1f}
+.tag.w{color:var(--warn);border-color:#5a4415}
+
+.files{display:grid;gap:8px}
+.frow{display:grid;grid-template-columns:110px 110px minmax(0,1fr);gap:8px;align-items:center}
+@media (max-width:520px){.frow{grid-template-columns:1fr 1fr}.frow input[type=file]{grid-column:1/-1}}
+
+.monitor{background:#050605;border:1px solid var(--line);border-radius:4px;height:180px;overflow:auto;padding:8px 10px;font:12px/1.5 var(--f-mono);color:#b8e6b8;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* live nodes */
+.nodes{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.node{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.node header{all:unset;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.node h3{font-size:14px}
+.dial{width:96px;height:96px;margin:0 auto}
+.btnlamp{display:flex;align-items:center;gap:8px;font:12px var(--f-mono);color:var(--muted)}
+.btnlamp i{width:14px;height:14px;border-radius:50%;background:var(--bg);border:1px solid var(--line)}
+.btnlamp.on i{background:var(--green-hi);box-shadow:0 0 10px var(--green-hi)}
+input[type=range]{width:100%;accent-color:var(--green)}
+
+/* log rail */
+.rail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 72px);display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 100px)}
+@media (max-width:980px){.rail{position:static;max-height:none}}
+.log{background:#050605;border:1px solid var(--line);border-radius:6px;overflow:auto;min-height:260px;flex:1;font:12px/1.45 var(--f-mono)}
+@media (max-width:980px){.log{height:340px;flex:none}}
+.ev{display:grid;grid-template-columns:62px 44px minmax(0,1fr);gap:8px;padding:5px 10px;border-bottom:1px solid #141614}
+.ev time{color:var(--dim)}
+.ev b{font-weight:600;font-size:10px;text-transform:uppercase;padding-top:1px}
+.ev span{overflow-wrap:anywhere}
+.ev em{display:block;font-style:normal;color:var(--dim)}
+.ev.info b{color:var(--info)} .ev.ok b{color:var(--green-hi)} .ev.warn b{color:var(--warn)} .ev.error b{color:var(--err)} .ev.debug b{color:var(--dim)}
+.ev.error{background:rgba(255,98,98,.06)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:none;border-radius:999px;padding:2px 10px;font:11px var(--f-mono);color:var(--muted);cursor:pointer}
+.chip[aria-pressed="true"]{border-color:var(--green-hi);color:var(--fg)}
+
+.note{border-left:3px solid var(--green);padding:10px 14px;background:var(--panel-2);border-radius:0 4px 4px 0;max-width:75ch}
+.note.w{border-left-color:var(--warn)}
+.note p{margin:4px 0 0;color:var(--muted)}
+.prose{max-width:70ch}
+.prose p,.prose li{color:#c7cec7}
+.prose h3{font-size:16px;margin-top:6px}
+pre.code{background:#050605;border:1px solid var(--line);border-radius:4px;padding:12px;overflow-x:auto;font:12px/1.5 var(--f-mono);color:#cfe9cf;margin:0}
+.tag.f{color:var(--err);border-color:#5a2020}
+.verdict{grid-column:1/-1;font:12px/1.5 var(--f-mono);color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere;padding:0 2px 4px}
+.verdict.ok,.sum.ok{color:var(--green-hi)} .verdict.warn,.sum.warn{color:var(--warn)} .verdict.err,.sum.err{color:var(--err)}
+.sum{font-size:12px;margin-top:8px;color:var(--muted)}
+.imu-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:14px}
+@media (max-width:1240px){.imu-grid{grid-template-columns:minmax(0,1fr)}}
+.stage{position:relative;aspect-ratio:16/10;max-width:100%;background:#050605;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.stage canvas{display:block;width:100%;height:100%}
+.hud{position:absolute;left:12px;top:10px;font-size:12px;color:var(--muted);pointer-events:none}
+.lock{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px;background:rgba(5,6,5,.78)}
+.readout{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.ro{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:8px 10px;min-width:0}
+.ro b{display:block;font:600 17px var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ro span{font-size:11px;color:var(--muted)}
+.checks{list-style:none;margin:0;padding:0}
+.checks li{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:13px;align-items:start}
+.checks li:first-child{border-top:0}
+.checks em{display:block;font-style:normal;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+#strip,#joyStrip{width:100%;height:140px;display:block}
+.pad{width:132px;height:132px;flex:none;max-width:100%}
+.pad .ring{fill:var(--bg);stroke:var(--line);stroke-width:2}
+.pad .axis{stroke:var(--line);stroke-width:1}
+.pad .dz{fill:none;stroke:var(--dim);stroke-dasharray:2 2}
+.pad .range{fill:rgba(82,197,82,.08);stroke:var(--green);stroke-width:1}
+.pad .dot{fill:var(--green-hi)}
+.btnlamp.big{font-size:13px;color:var(--fg)}
+.btnlamp.big i{width:22px;height:22px}
+.opt{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head><body>
+
+<header>
+  <div class="brand"><div class="orb" aria-hidden="true"></div>
+    <div><h1>WROVER Flash Lab</h1><small>Freenove ESP32-WROVER · Web Serial → Wi-Fi</small></div></div>
+  <div class="status">
+    <span class="pill" id="pSerial"><i></i>Web Serial</span>
+    <span class="pill" id="pPort"><i></i>No port</span>
+    <span class="pill" id="pHub"><i></i>Hub offline</span>
+  </div>
+</header>
+
+<div class="shell">
+<main>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" id="t-setup" aria-selected="true" data-tab="setup">1 · Setup (USB)</button>
+    <button class="tab" role="tab" id="t-live" aria-selected="false" data-tab="live">2 · Live (Wi-Fi)</button>
+    <button class="tab" role="tab" id="t-devices" aria-selected="false" data-tab="devices">Devices</button>
+    <button class="tab" role="tab" id="t-findings" aria-selected="false" data-tab="findings">Findings</button>
+    <button class="tab" role="tab" id="t-imu" aria-selected="false" data-tab="imu">IMU 3D</button>
+    <button class="tab" role="tab" id="t-joy" aria-selected="false" data-tab="joy">Joystick 3D</button>
+  </nav>
+
+  <!-- SETUP -->
+  <section id="v-setup" class="stack">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;margin-bottom:6px">
+        <h2 style="font-size:17px">Onboard a board</h2>
+        <div class="row">
+          <label class="row" style="gap:6px;font-size:13px;color:var(--muted)"><input type="checkbox" id="simMode"> Simulate board</label>
+          <select id="baud" aria-label="Flash baud rate"><option>115200</option><option selected>460800</option><option>921600</option></select>
+        </div>
+      </div>
+      <div class="steps" id="steps">
+        <div class="step" data-k="port"><div class="dot">1</div><div>
+          <h3>Pick the serial port</h3><p>Calls <code>navigator.serial.requestPort()</code>. The Freenove board shows up through its CH340 USB-UART bridge.</p>
+          <div class="row" style="margin-top:8px"><button class="btn primary" id="bConnect">Connect board</button><button class="btn" id="bDisconnect" disabled>Disconnect</button></div></div></div>
+        <div class="step" data-k="boot"><div class="dot">2</div><div>
+          <h3>Bootloader handshake</h3><p>esptool-js toggles DTR/RTS to drop the chip into ROM download mode. If it hangs, hold <b>BOOT</b> and tap <b>EN</b>.</p></div></div>
+        <div class="step" data-k="id"><div class="dot">3</div><div>
+          <h3>Read silicon identity</h3><p>Chip family, revision, features and the factory MAC from eFuse. The MAC becomes the device ID.</p></div></div>
+        <div class="step" data-k="flash"><div class="dot">4</div><div>
+          <h3>Stream firmware</h3><p>Choose compiled ESP32 <code>.bin</code> files. Each one is checked against the connected chip before anything is written; a failed check blocks the flash. A merged image from Arduino IDE goes at <code>0x0</code>.</p>
+          <div class="files" id="files" style="margin-top:10px"></div>
+          <div class="row" style="margin-top:10px"><button class="btn sm" id="bAddFile">+ Add image</button><button class="btn primary" id="bFlash" disabled>Flash</button><label class="row" style="gap:6px;font-size:12px;color:var(--muted)"><input type="checkbox" id="eraseAll"> Erase all flash first</label><button class="btn sm" id="bErase" disabled>Erase entire flash</button></div>
+          <div class="mono sum" id="verifySum">Choose a file to check it against the board.</div>
+          <div class="bar"><div id="prog"></div></div><div class="mono" id="progTxt" style="font-size:12px;color:var(--muted);margin-top:4px">Idle</div></div></div>
+        <div class="step" data-k="wifi"><div class="dot">5</div><div>
+          <h3>Provision Wi-Fi over serial</h3><p>Sends one JSON line at 115200 baud. Your firmware saves it to NVS and answers with its ID.</p>
+          <form class="row" id="wifiForm" style="margin-top:8px" autocomplete="off">
+            <input type="text" id="ssid" placeholder="SSID" aria-label="Wi-Fi SSID">
+            <input type="password" id="wpass" placeholder="Password" aria-label="Wi-Fi password">
+            <input type="text" id="hubUrl" placeholder="Hub host, e.g. 192.168.1.20" aria-label="Hub host">
+            <button class="btn primary" id="bWifi" disabled>Send config</button></form></div></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel stack">
+        <div class="row" style="justify-content:space-between"><span class="label">Connected chip</span><span class="tag" id="idTag">none</span></div>
+        <dl class="kv" id="idCard">
+          <dt>Device ID</dt><dd class="hi">—</dd><dt>MAC</dt><dd>—</dd><dt>Chip</dt><dd>—</dd>
+          <dt>Features</dt><dd>—</dd><dt>Crystal</dt><dd>—</dd><dt>USB bridge</dt><dd>—</dd><dt>Flash</dt><dd>—</dd>
+        </dl>
+      </div>
+      <div class="panel stack">
+        <div class="row" style="justify-content:space-between"><span class="label">Serial monitor · 115200</span>
+          <div class="row"><button class="btn sm" id="bMon" disabled>Open monitor</button><button class="btn sm" id="bReset" disabled>Reset board</button></div></div>
+        <div class="monitor" id="monitor" aria-live="polite">Monitor output appears here after flashing.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIVE -->
+  <section id="v-live" class="stack" hidden>
+    <div class="panel stack">
+      <div class="row" style="justify-content:space-between"><h2 style="font-size:17px">Control hub</h2><span class="tag w" id="liveTag">example data</span></div>
+      <div class="row">
+        <input type="text" id="wsUrl" value="ws://localhost:8080/ws" style="flex:1;min-width:200px" aria-label="WebSocket URL">
+        <button class="btn primary" id="bWs">Connect hub</button>
+        <button class="btn" id="bSimLive">Stop simulation</button>
+      </div>
+      <div class="note"><b>Running on localhost.</b><p>Start the hub with <span class="mono">npm start</span> and open <span class="mono">http://localhost:8080</span>. Plain <span class="mono">ws://</span> works here. Once the page moves to HTTPS on Vercel it will need <span class="mono">wss://</span> (see Findings).</p></div>
+    </div>
+    <div class="nodes" id="nodes"></div>
+  </section>
+
+  <!-- DEVICES -->
+  <section id="v-devices" class="stack" hidden>
+    <div class="panel stack">
+      <div class="row" style="justify-content:space-between"><h2 style="font-size:17px">Device registry</h2>
+        <div class="row"><button class="btn sm" id="bCopyReg">Copy JSON</button><button class="btn sm" id="bClearReg">Clear</button></div></div>
+      <p style="margin:0;color:var(--muted);max-width:70ch">Keyed by eFuse MAC. Stored in this browser only. Rows tagged <span class="tag w">example</span> are sample data.</p>
+      <div class="tbl"><table><thead><tr><th>Device ID</th><th>MAC</th><th>Chip</th><th>Bridge</th><th>Firmware</th><th>Last seen</th><th></th></tr></thead><tbody id="regBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- FINDINGS -->
+  <section id="v-findings" class="stack" hidden>
+    <div class="panel prose stack">
+      <h3>How to tell boards apart</h3>
+      <p>Use the <b>factory MAC address</b> burned into eFuse. Every ESP32 has a unique one, it survives reflashing and erasing, and esptool-js reads it during the handshake before any firmware runs. The same value is available in firmware via <span class="mono">ESP.getEfuseMac()</span>, so the board can announce itself on Wi-Fi with the exact ID the setup page recorded.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Identifier</th><th>Unique?</th><th>Use it for</th></tr></thead>
+        <tbody>
+          <tr><td>eFuse MAC (e.g. <span class="mono">24:6F:28:A1:B2:C3</span>)</td><td><span class="tag g">yes</span></td><td>Primary device ID</td></tr>
+          <tr><td>USB VID/PID from <span class="mono">port.getInfo()</span></td><td><span class="tag w">no</span></td><td>Recognising the bridge chip (CH340 = 1A86:7523)</td></tr>
+          <tr><td>USB serial number</td><td><span class="tag w">no</span></td><td>CH340 has none, and Web Serial doesn't expose it anyway</td></tr>
+          <tr><td>COM port name</td><td><span class="tag w">no</span></td><td>Hidden from web pages; changes per cable and OS</td></tr>
+          <tr><td>Chip revision / features</td><td><span class="tag w">no</span></td><td>Picking the right firmware from manifest.json</td></tr>
+        </tbody></table></div>
+      <p>The ID format this page uses is <span class="mono">wrover-</span> plus the last three MAC bytes, like <span class="mono">wrover-a1b2c3</span>. Friendly names ("kitchen dial") live in the registry as a label on top of that key.</p>
+
+      <h3>Your board</h3>
+      <p>The Freenove ESP32-WROVER pairs an ESP32-D0WD-V3 with 4 MB flash, 8 MB PSRAM and an OV2640 camera connector, behind a CH340 USB-UART chip. Because it is a classic ESP32, it has no native USB. Every browser connection runs through the CH340 serial bridge, which is exactly the Web Serial path in your notes. Some Windows machines need the CH340 driver before the port appears.</p>
+
+      <h3>The "web compiler" and browser limits</h3>
+      <ul>
+        <li><b>Compiling in the browser isn't practical.</b> The Xtensa GCC toolchain and Arduino core are hundreds of MB. Vercel functions also time out well before an ESP32 build finishes. Run <span class="mono">arduino-cli</span> or PlatformIO on a separate build server (a small VPS or a GitHub Action) that returns <span class="mono">.bin</span> files, and let the Vercel page flash them.</li>
+        <li><b>Better: compile once, configure at runtime.</b> Ship one firmware with all capabilities, then send pins, sensor types and Wi-Fi over serial into NVS. Most "custom builds" become a JSON config, and flashing stays instant.</li>
+        <li><b>Web Serial rules.</b> Chrome, Edge or Opera on desktop only. HTTPS required (Vercel is fine). The port picker only opens from a click. No Firefox, Safari or iOS.</li>
+        <li><b>Embedded frames.</b> Web Serial is off inside iframes unless the parent grants <span class="mono">allow="serial"</span>. This preview frame may not grant it, so use <b>Simulate board</b> here and real hardware once deployed.</li>
+        <li><b>Mixed content.</b> The HTTPS page can't reach <span class="mono">ws://</span> or <span class="mono">http://</span> on your LAN. That covers your hub and the camera's MJPEG stream on port 81. Options: a cloud broker with <span class="mono">wss://</span> (HiveMQ Cloud, EMQX), a tunnel (Cloudflare Tunnel) to the hub, or serve the live dashboard from the hub itself over plain HTTP.</li>
+        <li><b>Credentials over serial.</b> Wi-Fi passwords travel in plain text over USB. That's acceptable on a local cable, but never log them. This page masks the password in the event log.</li>
+      </ul>
+    </div>
+    <div class="panel stack">
+      <div class="row" style="justify-content:space-between"><span class="label">Firmware side of the serial contract</span><button class="btn sm" id="bCopyFw">Copy sketch</button></div>
+<pre class="code" id="fwCode">// Arduino (ESP32 core). Listens for {"cmd":"wifi",...} and announces itself.
+#include &lt;WiFi.h&gt;
+#include &lt;Preferences.h&gt;
+#include &lt;ArduinoJson.h&gt;
+Preferences prefs;
+
+String deviceId() {
+  uint64_t mac = ESP.getEfuseMac();           // same MAC the web page read
+  char id[16];
+  snprintf(id, sizeof(id), "wrover-%02x%02x%02x",
+           (uint8_t)(mac &gt;&gt; 24), (uint8_t)(mac &gt;&gt; 32), (uint8_t)(mac &gt;&gt; 40));
+  return String(id);
+}
+
+void hello() {                                // the web page parses this line
+  Serial.printf("{\"id\":\"%s\",\"fw\":\"0.1.0\",\"caps\":[\"potentiometer\",\"button\",\"camera\"]}\n",
+                deviceId().c_str());
+}
+
+void setup() {
+  Serial.begin(115200);
+  prefs.begin("net", false);
+  hello();
+  String ssid = prefs.getString("ssid", "");
+  if (ssid.length()) WiFi.begin(ssid.c_str(), prefs.getString("pass", "").c_str());
+}
+
+void loop() {
+  if (Serial.available()) {
+    String line = Serial.readStringUntil('\n');
+    JsonDocument doc;
+    if (deserializeJson(doc, line)) return;
+    if (doc["cmd"] == "wifi") {
+      prefs.putString("ssid", doc["ssid"].as&lt;String&gt;());
+      prefs.putString("pass", doc["pass"].as&lt;String&gt;());
+      prefs.putString("hub",  doc["hub"].as&lt;String&gt;());
+      Serial.printf("{\"ok\":true,\"id\":\"%s\",\"saved\":\"wifi\"}\n", deviceId().c_str());
+      delay(200); ESP.restart();
+    } else if (doc["cmd"] == "hello") hello();
+  }
+}</pre>
+    </div>
+  </section>
+
+  <!-- IMU 3D -->
+  <section id="v-imu" class="stack" hidden>
+    <div class="panel stack">
+      <div class="row" style="justify-content:space-between">
+        <div><h2 style="font-size:17px">MPU-6050 ball</h2><div class="mono" id="imuWho" style="font-size:12px;color:var(--muted)">Waiting for mpu6050-ball firmware</div></div>
+        <div class="row">
+          <button class="btn primary sm" id="bImuListen">Listen on USB</button>
+          <button class="btn sm" id="bImuTest">Run self-test</button>
+          <button class="btn sm" id="bImuLevel">Set level</button>
+          <button class="btn sm" id="bImuBall">Reset ball</button>
+          <select id="imuMount" aria-label="How the sensor sits on the breadboard"><option value="0">Sensor X → right</option><option value="1">Sensor X → away</option><option value="2">Sensor X → left</option><option value="3">Sensor X → toward you</option></select>
+          <button class="btn sm" id="bImuSim">Simulate MPU-6050</button>
+        </div>
+      </div>
+      <div class="imu-grid">
+        <div class="stack" style="min-width:0">
+          <div class="stage" id="stage">
+            <canvas id="imuCanvas" aria-label="Tilting plane with a ball that rolls with the sensor"></canvas>
+            <div class="hud mono" id="imuHud">locked</div>
+            <div class="lock" id="imuLock"><div class="stack" style="align-items:center;max-width:44ch">
+              <span class="tag w">locked</span>
+              <h3 style="font-size:16px">Flash mpu6050_ball.ino to unlock</h3>
+              <p style="margin:0;color:var(--muted)" id="imuLockMsg">This view only runs for a board that identifies as mpu6050-ball over USB. Any other firmware keeps it locked.</p>
+            </div></div>
+          </div>
+          <div class="panel" style="padding:12px">
+            <div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="label">Accelerometer · last 5 s</span>
+              <span class="mono" style="font-size:11px"><span style="color:var(--green-hi)">━ ax</span> &nbsp;<span style="color:var(--info)">━ ay</span> &nbsp;<span style="color:var(--warn)">━ az</span></span></div>
+            <canvas id="strip" aria-label="Accelerometer strip chart, minus 2 to plus 2 g"></canvas>
+          </div>
+        </div>
+        <div class="stack" style="min-width:0">
+          <div class="readout" id="imuRead"></div>
+          <div class="panel" style="padding:14px">
+            <div class="row" style="justify-content:space-between;margin-bottom:4px"><span class="label">Hardware verification</span><span class="tag" id="chkTag">pending</span></div>
+            <ul class="checks" id="checks"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel stack">
+        <div class="row" style="justify-content:space-between"><span class="label">Serial monitor · 115200</span><button class="btn sm" id="bImuPause">Pause view</button></div>
+        <div class="monitor" id="imuMon" style="height:220px">IMU lines appear here once the board streams.</div>
+        <form class="row" id="imuCmdForm" autocomplete="off">
+          <input type="text" id="imuCmd" class="mono" placeholder='selftest, hello, or {"cmd":"stream","on":false}' style="flex:1;min-width:180px" aria-label="Command to send to the board">
+          <button class="btn sm">Send</button>
+        </form>
+      </div>
+      <div class="panel stack">
+        <span class="label">Loading different code</span>
+        <p style="margin:0;color:#c7cec7;max-width:65ch">Flashing a new image replaces the running program completely, so nothing extra is needed to override this demo. Flash any other <span class="mono">.bin</span> in step 4 and the board reboots into it. This tab locks again because the new firmware won't identify as mpu6050-ball.</p>
+        <p style="margin:0;color:#c7cec7;max-width:65ch">Settings saved in NVS, like Wi-Fi, survive a normal flash. To wipe everything, use <b>Erase entire flash</b> in step 4.</p>
+        <p style="margin:0;color:#c7cec7;max-width:65ch">If a sketch crashes so fast that Connect fails, hold <b>BOOT</b>, tap <b>EN</b>, release BOOT, and connect again. The ROM bootloader lives in silicon, so a bad sketch can't lock you out.</p>
+        <div class="row"><button class="btn sm" id="bGoFlash">Go to step 4</button></div>
+      </div>
+    </div>
+
+    <div class="panel stack">
+      <div class="row" style="justify-content:space-between"><span class="label">mpu6050_ball.ino · board "ESP32 Wrover Module" · no extra libraries</span><button class="btn sm" id="bCopyIno">Copy sketch</button></div>
+      <pre class="code" id="inoCode">// mpu6050_ball.ino
+// Freenove ESP32-WROVER + MPU-6050 demo for WROVER Flash Lab (IMU 3D tab).
+//
+// Wiring (GY-521 breakout):
+//   VCC -&gt; 3V3   (the GY-521 has its own regulator, so 5V also works)
+//   GND -&gt; GND
+//   SCL -&gt; GPIO 22
+//   SDA -&gt; GPIO 21
+//
+// Arduino IDE: Board "ESP32 Wrover Module". No extra libraries needed (Wire is built in).
+// Build:       Sketch -&gt; Export Compiled Binary, then flash the *.merged.bin at 0x0.
+//
+// Serial protocol, 115200 baud, one JSON object per line:
+//   board -&gt; page  {"id":"wrover-a1b2c3","fw":"mpu6050-ball","ver":"1.0.0","caps":["imu"]}
+//                  {"t":"selftest", ...hardware report...}
+//                  {"t":"imu","s":123,"ax":0.01,"ay":-0.02,"az":1.00,"gx":0.3,"gy":-0.1,"gz":0.0,"tc":27.4}
+//                  {"t":"err","msg":"..."}
+//   page -&gt; board  {"cmd":"hello"}  {"cmd":"selftest"}  {"cmd":"stream","on":false}
+
+#include &lt;Wire.h&gt;
+#include &lt;esp_chip_info.h&gt;
+
+#define FW_NAME "mpu6050-ball"
+#define FW_VER  "1.0.0"
+#define SDA_PIN 21
+#define SCL_PIN 22
+#define RATE_HZ 50
+
+// MPU-6050 registers
+#define REG_SMPLRT_DIV   0x19
+#define REG_CONFIG       0x1A
+#define REG_GYRO_CONFIG  0x1B
+#define REG_ACCEL_CONFIG 0x1C
+#define REG_ACCEL_XOUT_H 0x3B
+#define REG_PWR_MGMT_1   0x6B
+#define REG_WHO_AM_I     0x75
+
+const float ACCEL_LSB_PER_G  = 16384.0f;  // +-2 g range
+const float GYRO_LSB_PER_DPS = 131.0f;    // +-250 deg/s range
+
+uint8_t  mpuAddr   = 0;     // 0x68 (AD0 low) or 0x69 (AD0 high); 0 = not found
+uint8_t  whoAmI    = 0;
+bool     streaming = true;
+uint32_t seq       = 0;
+uint32_t lastSample = 0, lastErr = 0;
+String   rxLine;
+
+struct Imu { float ax, ay, az, gx, gy, gz, tc; };
+
+String deviceId() {
+  uint64_t mac = ESP.getEfuseMac();         // same factory MAC the web page reads over USB
+  char id[16];
+  snprintf(id, sizeof(id), "wrover-%02x%02x%02x",
+           (uint8_t)(mac &gt;&gt; 24), (uint8_t)(mac &gt;&gt; 32), (uint8_t)(mac &gt;&gt; 40));
+  return String(id);
+}
+
+bool probe(uint8_t addr) {
+  Wire.beginTransmission(addr);
+  return Wire.endTransmission() == 0;
+}
+
+bool writeReg(uint8_t reg, uint8_t val) {
+  Wire.beginTransmission(mpuAddr);
+  Wire.write(reg);
+  Wire.write(val);
+  return Wire.endTransmission() == 0;
+}
+
+bool readRegs(uint8_t reg, uint8_t *buf, uint8_t len) {
+  Wire.beginTransmission(mpuAddr);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) return false;
+  if (Wire.requestFrom(mpuAddr, len) != len) return false;
+  for (uint8_t i = 0; i &lt; len; i++) buf[i] = Wire.read();
+  return true;
+}
+
+bool initMpu() {
+  mpuAddr = probe(0x68) ? 0x68 : probe(0x69) ? 0x69 : 0;
+  if (!mpuAddr) return false;
+  whoAmI = 0;
+  readRegs(REG_WHO_AM_I, &amp;whoAmI, 1);
+  return writeReg(REG_PWR_MGMT_1, 0x01)       // wake up, clock from gyro X PLL
+      &amp;&amp; writeReg(REG_SMPLRT_DIV, 19)         // 1 kHz / (1 + 19) = 50 Hz
+      &amp;&amp; writeReg(REG_CONFIG, 0x03)           // ~44 Hz low-pass filter
+      &amp;&amp; writeReg(REG_GYRO_CONFIG, 0x00)      // +-250 deg/s
+      &amp;&amp; writeReg(REG_ACCEL_CONFIG, 0x00);    // +-2 g
+}
+
+bool readImu(Imu &amp;m) {
+  uint8_t b[14];
+  if (!mpuAddr || !readRegs(REG_ACCEL_XOUT_H, b, 14)) return false;
+  auto s16 = [&amp;](int i) { return (int16_t)((b[i] &lt;&lt; 8) | b[i + 1]); };
+  m.ax = s16(0)  / ACCEL_LSB_PER_G;
+  m.ay = s16(2)  / ACCEL_LSB_PER_G;
+  m.az = s16(4)  / ACCEL_LSB_PER_G;
+  m.tc = s16(6)  / 340.0f + 36.53f;
+  m.gx = s16(8)  / GYRO_LSB_PER_DPS;
+  m.gy = s16(10) / GYRO_LSB_PER_DPS;
+  m.gz = s16(12) / GYRO_LSB_PER_DPS;
+  return true;
+}
+
+void hello() {
+  Serial.printf("{\"id\":\"%s\",\"fw\":\"" FW_NAME "\",\"ver\":\"" FW_VER "\",\"caps\":[\"imu\"]}\n",
+                deviceId().c_str());
+}
+
+// Hardware report the page uses for its verification checklist.
+void selftest() {
+  String found;                                  // every address that ACKs on the bus
+  for (uint8_t a = 1; a &lt; 127; a++) {
+    if (!probe(a)) continue;
+    char h[10];
+    snprintf(h, sizeof(h), "\"0x%02x\"", a);
+    if (found.length()) found += ",";
+    found += h;
+  }
+
+  bool mpuOk  = initMpu();
+  Imu  m      = {};
+  bool readOk = mpuOk &amp;&amp; readImu(m);
+  float g     = sqrtf(m.ax * m.ax + m.ay * m.ay + m.az * m.az);
+  bool whoOk  = whoAmI == 0x68 || whoAmI == 0x70 || whoAmI == 0x71 || whoAmI == 0x72 || whoAmI == 0x73;
+  bool pass   = readOk &amp;&amp; whoOk &amp;&amp; g &gt; 0.8f &amp;&amp; g &lt; 1.2f;
+
+  char mpu[12] = "null", who[12] = "null";
+  if (mpuAddr) {
+    snprintf(mpu, sizeof(mpu), "\"0x%02x\"", mpuAddr);
+    snprintf(who, sizeof(who), "\"0x%02x\"", whoAmI);
+  }
+
+  esp_chip_info_t ci;
+  esp_chip_info(&amp;ci);                            // revision is major*100+minor on core 3.x
+
+  Serial.printf("{\"t\":\"selftest\",\"id\":\"%s\",\"fw\":\"" FW_NAME "\",\"chip\":\"%s\",\"rev\":%d,"
+                "\"cores\":%d,\"flash\":%lu,\"psram\":%lu,\"sdk\":\"%s\",\"sda\":%d,\"scl\":%d,"
+                "\"i2c\":[%s],\"mpu\":%s,\"whoami\":%s,\"g\":%.3f,\"pass\":%s}\n",
+                deviceId().c_str(), ESP.getChipModel(), (int)ci.revision, (int)ci.cores,
+                (unsigned long)ESP.getFlashChipSize(), (unsigned long)ESP.getPsramSize(), ESP.getSdkVersion(),
+                SDA_PIN, SCL_PIN, found.c_str(), mpu, who, g, pass ? "true" : "false");
+}
+
+void handleCommand(const String &amp;line) {
+  if (line.indexOf("\"selftest\"") &gt;= 0) {
+    selftest();
+  } else if (line.indexOf("\"hello\"") &gt;= 0) {
+    hello();
+  } else if (line.indexOf("\"stream\"") &gt;= 0) {
+    streaming = line.indexOf("false") &lt; 0;
+    Serial.printf("{\"ok\":true,\"stream\":%s}\n", streaming ? "true" : "false");
+  } else {
+    Serial.println("{\"t\":\"err\",\"msg\":\"unknown command\"}");
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(SDA_PIN, SCL_PIN);
+  Wire.setClock(400000);
+  delay(50);
+  hello();
+  selftest();                                    // also configures the MPU
+}
+
+void loop() {
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n') {
+      rxLine.trim();
+      if (rxLine.length()) handleCommand(rxLine);
+      rxLine = "";
+    } else if (rxLine.length() &lt; 256) {
+      rxLine += c;
+    }
+  }
+
+  uint32_t now = millis();
+  if (!streaming || now - lastSample &lt; 1000 / RATE_HZ) return;
+  lastSample = now;
+
+  Imu m;
+  if (readImu(m)) {
+    Serial.printf("{\"t\":\"imu\",\"s\":%lu,\"ax\":%.3f,\"ay\":%.3f,\"az\":%.3f,"
+                  "\"gx\":%.2f,\"gy\":%.2f,\"gz\":%.2f,\"tc\":%.1f}\n",
+                  (unsigned long)seq++, m.ax, m.ay, m.az, m.gx, m.gy, m.gz, m.tc);
+  } else if (now - lastErr &gt; 1000) {
+    lastErr = now;
+    Serial.println("{\"t\":\"err\",\"msg\":\"MPU-6050 read failed, retrying\"}");
+    initMpu();
+  }
+}</pre>
+    </div>
+  </section>
+
+  <!-- JOYSTICK 3D -->
+  <section id="v-joy" class="stack" hidden>
+    <div class="panel stack">
+      <div class="row" style="justify-content:space-between">
+        <div><h2 style="font-size:17px">HW-504 joystick ball</h2><div class="mono" id="joyWho" style="font-size:12px;color:var(--muted)">Waiting for joystick-ball firmware</div></div>
+        <div class="row">
+          <button class="btn primary sm" id="bJoyListen">Listen on USB</button>
+          <button class="btn sm" id="bJoyTest">Run self-test</button>
+          <button class="btn sm" id="bJoyCenter">Set center</button>
+          <button class="btn sm" id="bJoyBall">Reset ball</button>
+          <button class="btn sm" id="bJoySim">Simulate joystick</button>
+        </div>
+      </div>
+      <div class="imu-grid">
+        <div class="stack" style="min-width:0">
+          <div class="stage" id="joyStage">
+            <canvas id="joyCanvas" aria-label="Plane with a ball driven by the joystick"></canvas>
+            <div class="hud mono" id="joyHud">locked</div>
+            <div class="lock" id="joyLock"><div class="stack" style="align-items:center;max-width:44ch">
+              <span class="tag w">locked</span>
+              <h3 style="font-size:16px">Flash joystick_ball.ino to unlock</h3>
+              <p style="margin:0;color:var(--muted)" id="joyLockMsg">This view only runs for a board that identifies as joystick-ball over USB. Any other firmware keeps it locked.</p>
+            </div></div>
+          </div>
+          <div class="panel" style="padding:12px">
+            <div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="label">Stick · last 5 s</span>
+              <span class="mono" style="font-size:11px"><span style="color:var(--green-hi)">━ x</span> &nbsp;<span style="color:var(--info)">━ y</span> &nbsp;<span style="color:var(--warn)">▮ SW</span></span></div>
+            <canvas id="joyStrip" aria-label="Stick position strip chart, minus 1 to plus 1, with button presses"></canvas>
+          </div>
+        </div>
+        <div class="stack" style="min-width:0">
+          <div class="panel" style="padding:14px">
+            <div class="row" style="gap:18px;align-items:center">
+              <svg class="pad" viewBox="0 0 120 120" aria-label="Stick position and travel seen so far">
+                <circle class="ring" cx="60" cy="60" r="50"></circle>
+                <line class="axis" x1="10" y1="60" x2="110" y2="60"></line><line class="axis" x1="60" y1="10" x2="60" y2="110"></line>
+                <rect class="range" id="joyBox" x="60" y="60" width="0" height="0"></rect>
+                <circle class="dz" cx="60" cy="60" r="4"></circle>
+                <circle class="dot" id="joyDot" cx="60" cy="60" r="6"></circle>
+              </svg>
+              <div class="stack" style="gap:10px">
+                <div class="btnlamp big" id="joyLed"><i></i><span>SW released</span></div>
+                <label class="opt"><input type="checkbox" id="joySwap"> Swap X / Y</label>
+                <label class="opt"><input type="checkbox" id="joyInvX"> Invert X</label>
+                <label class="opt"><input type="checkbox" id="joyInvY"> Invert Y</label>
+              </div>
+            </div>
+          </div>
+          <div class="readout" id="joyRead"></div>
+          <div class="panel" style="padding:14px">
+            <div class="row" style="justify-content:space-between;margin-bottom:4px"><span class="label">Hardware verification</span><span class="tag" id="joyChkTag">pending</span></div>
+            <ul class="checks" id="joyChecks"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel stack">
+        <div class="row" style="justify-content:space-between"><span class="label">Serial monitor · 115200</span><button class="btn sm" id="bJoyPause">Pause view</button></div>
+        <div class="monitor" id="joyMon" style="height:220px">Joystick lines appear here once the board streams.</div>
+        <form class="row" id="joyCmdForm" autocomplete="off">
+          <input type="text" id="joyCmd" class="mono" placeholder='selftest, hello, or {"cmd":"stream","on":false}' style="flex:1;min-width:180px" aria-label="Command to send to the board">
+          <button class="btn sm">Send</button>
+        </form>
+        <div class="row" style="justify-content:space-between"><span style="font-size:13px;color:var(--muted)">Flash any other image in step 4 to replace this demo.</span><button class="btn sm" id="bJoyGoFlash">Go to step 4</button></div>
+      </div>
+      <div class="panel stack">
+        <span class="label">Wiring · HW-504</span>
+        <div class="tbl"><table>
+          <thead><tr><th>HW-504 pin</th><th>ESP32 pin</th><th>Note</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">GND</td><td class="mono">GND</td><td></td></tr>
+            <tr><td class="mono">+5V</td><td class="mono">3V3</td><td><span class="tag f">not 5V</span></td></tr>
+            <tr><td class="mono">VRx</td><td class="mono">GPIO 32</td><td>ADC1, works with Wi-Fi on</td></tr>
+            <tr><td class="mono">VRy</td><td class="mono">GPIO 33</td><td>ADC1</td></tr>
+            <tr><td class="mono">SW</td><td class="mono">GPIO 13</td><td>internal pull-up</td></tr>
+          </tbody></table></div>
+        <p style="margin:0;color:#c7cec7;max-width:65ch">The pin labeled +5V powers the two potentiometers, so the stick outputs whatever voltage you feed it. On 5V it pushes up to 5 V into pins rated for 3.6 V. On 3V3 the full travel reads 0–4095.</p>
+        <p style="margin:0;color:#c7cec7;max-width:65ch">These pins stay clear of the camera connector and the MPU-6050 on GPIO 21/22, so both sensors can stay wired at once.</p>
+      </div>
+    </div>
+
+    <div class="panel stack">
+      <div class="row" style="justify-content:space-between"><span class="label">joystick_ball.ino · board "ESP32 Wrover Module" · no extra libraries</span><button class="btn sm" id="bCopyJoy">Copy sketch</button></div>
+      <pre class="code" id="joyCode">// joystick_ball.ino
+// Freenove ESP32-WROVER + HW-504 joystick demo for WROVER Flash Lab (Joystick 3D tab).
+//
+// Wiring (HW-504):
+//   GND  -&gt; GND
+//   +5V  -&gt; 3V3     NOT 5V. The stick outputs its own supply voltage, and ESP32 pins max out at 3.6 V.
+//   VRx  -&gt; GPIO 32 (ADC1)
+//   VRy  -&gt; GPIO 33 (ADC1)
+//   SW   -&gt; GPIO 13 (internal pull-up, reads LOW when pressed)
+// ADC1 pins keep working with Wi-Fi on (ADC2 pins don't), and these three pins stay clear
+// of the camera connector and the MPU-6050 on GPIO 21/22, so both demos can stay wired.
+//
+// Arduino IDE: Board "ESP32 Wrover Module". No extra libraries.
+// Build:       Sketch -&gt; Export Compiled Binary, then flash the *.merged.bin at 0x0.
+//
+// Serial protocol, 115200 baud, one JSON object per line:
+//   board -&gt; page  {"id":"wrover-a1b2c3","fw":"joystick-ball","ver":"1.0.0","caps":["joystick","button"]}
+//                  {"t":"selftest", ...wiring report...}
+//                  {"t":"joy","s":123,"x":1940,"y":1952,"sw":0}      x/y raw 0-4095, sw 1 = pressed
+//   page -&gt; board  {"cmd":"hello"}  {"cmd":"selftest"}  {"cmd":"stream","on":false}
+
+#include &lt;esp_chip_info.h&gt;
+#include &lt;driver/gpio.h&gt;
+
+#define FW_NAME     "joystick-ball"
+#define FW_VER      "1.0.0"
+#define VRX_PIN     32
+#define VRY_PIN     33
+#define SW_PIN      13
+#define RATE_HZ     50
+#define DEBOUNCE_MS 15
+
+bool     streaming = true;
+uint32_t seq = 0, lastSample = 0, swChanged = 0;
+bool     swState = false, swRaw = false;   // true = pressed
+String   rxLine;
+
+struct PinReport { int rest, noise, down, up; bool floating; };
+
+String deviceId() {
+  uint64_t mac = ESP.getEfuseMac();          // same factory MAC the web page reads over USB
+  char id[16];
+  snprintf(id, sizeof(id), "wrover-%02x%02x%02x",
+           (uint8_t)(mac &gt;&gt; 24), (uint8_t)(mac &gt;&gt; 32), (uint8_t)(mac &gt;&gt; 40));
+  return String(id);
+}
+
+int readAvg(int pin, int n) {
+  long sum = 0;
+  for (int i = 0; i &lt; n; i++) sum += analogRead(pin);
+  return sum / n;
+}
+
+// Wiring check: an unconnected ADC pin follows whichever pull resistor is switched on,
+// while a pot wiper (a few kilohms) barely moves against the ~45 kOhm internal pulls.
+PinReport testPin(int pin) {
+  PinReport r;
+  gpio_num_t g = (gpio_num_t)pin;
+  analogRead(pin);                             // attach the pin to the ADC before touching pulls
+  long sum = 0, sq = 0;
+  for (int i = 0; i &lt; 32; i++) { int v = analogRead(pin); sum += v; sq += (long)v * v; }
+  r.rest  = sum / 32;
+  r.noise = (int)sqrtf(fmaxf(0.0f, (float)sq / 32 - (float)r.rest * r.rest));
+  gpio_pulldown_en(g); delay(5); r.down = readAvg(pin, 16); gpio_pulldown_dis(g);
+  gpio_pullup_en(g);   delay(5); r.up   = readAvg(pin, 16); gpio_pullup_dis(g);
+  delay(5);
+  r.floating = (r.up - r.down) &gt; 1500;
+  return r;
+}
+
+void printPin(const char *key, const PinReport &amp;r) {
+  Serial.printf("\"%s\":{\"rest\":%d,\"noise\":%d,\"down\":%d,\"up\":%d,\"float\":%s}",
+                key, r.rest, r.noise, r.down, r.up, r.floating ? "true" : "false");
+}
+
+void hello() {
+  Serial.printf("{\"id\":\"%s\",\"fw\":\"" FW_NAME "\",\"ver\":\"" FW_VER "\",\"caps\":[\"joystick\",\"button\"]}\n",
+                deviceId().c_str());
+}
+
+// Hardware report the page uses for its verification checklist. Keep hands off the stick while it runs.
+void selftest() {
+  PinReport x = testPin(VRX_PIN), y = testPin(VRY_PIN);
+  int  swIdle = digitalRead(SW_PIN);
+  bool midX = x.rest &gt; 1400 &amp;&amp; x.rest &lt; 2700, midY = y.rest &gt; 1400 &amp;&amp; y.rest &lt; 2700;
+  bool pass = !x.floating &amp;&amp; !y.floating &amp;&amp; swIdle == HIGH &amp;&amp; midX &amp;&amp; midY;
+
+  esp_chip_info_t ci;
+  esp_chip_info(&amp;ci);                          // revision is major*100+minor on core 3.x
+
+  Serial.printf("{\"t\":\"selftest\",\"id\":\"%s\",\"fw\":\"" FW_NAME "\",\"chip\":\"%s\",\"rev\":%d,"
+                "\"cores\":%d,\"flash\":%lu,\"psram\":%lu,\"sdk\":\"%s\",\"vrx\":%d,\"vry\":%d,\"swpin\":%d,",
+                deviceId().c_str(), ESP.getChipModel(), (int)ci.revision, (int)ci.cores,
+                (unsigned long)ESP.getFlashChipSize(), (unsigned long)ESP.getPsramSize(), ESP.getSdkVersion(),
+                VRX_PIN, VRY_PIN, SW_PIN);
+  printPin("x", x);
+  Serial.print(",");
+  printPin("y", y);
+  Serial.printf(",\"sw_idle\":%d,\"cx\":%d,\"cy\":%d,\"pass\":%s}\n",
+                swIdle, x.rest, y.rest, pass ? "true" : "false");
+}
+
+void handleCommand(const String &amp;line) {
+  if (line.indexOf("\"selftest\"") &gt;= 0) {
+    selftest();
+  } else if (line.indexOf("\"hello\"") &gt;= 0) {
+    hello();
+  } else if (line.indexOf("\"stream\"") &gt;= 0) {
+    streaming = line.indexOf("false") &lt; 0;
+    Serial.printf("{\"ok\":true,\"stream\":%s}\n", streaming ? "true" : "false");
+  } else {
+    Serial.println("{\"t\":\"err\",\"msg\":\"unknown command\"}");
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  analogReadResolution(12);                    // 0-4095; default attenuation already covers 0-3.3 V
+  pinMode(SW_PIN, INPUT_PULLUP);
+  delay(50);
+  hello();
+  selftest();
+}
+
+void loop() {
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n') {
+      rxLine.trim();
+      if (rxLine.length()) handleCommand(rxLine);
+      rxLine = "";
+    } else if (rxLine.length() &lt; 256) {
+      rxLine += c;
+    }
+  }
+
+  uint32_t now = millis();
+  bool raw = digitalRead(SW_PIN) == LOW;
+  if (raw != swRaw) { swRaw = raw; swChanged = now; }
+  bool edge = false;
+  if (swRaw != swState &amp;&amp; now - swChanged &gt;= DEBOUNCE_MS) { swState = swRaw; edge = true; }
+
+  if (!streaming) return;
+  if (!edge &amp;&amp; now - lastSample &lt; 1000 / RATE_HZ) return;   // button edges go out immediately
+  lastSample = now;
+  Serial.printf("{\"t\":\"joy\",\"s\":%lu,\"x\":%d,\"y\":%d,\"sw\":%d}\n",
+                (unsigned long)seq++, readAvg(VRX_PIN, 4), readAvg(VRY_PIN, 4), swState ? 1 : 0);
+}</pre>
+    </div>
+  </section>
+
+</main>
+
+<aside class="rail">
+  <div class="row" style="justify-content:space-between"><span class="label">Event log</span>
+    <div class="row"><button class="btn sm" id="bCopyLog">Copy</button><button class="btn sm" id="bClearLog">Clear</button></div></div>
+  <div class="chips" id="lvlChips"></div>
+  <div class="log" id="log" role="log" aria-live="polite"></div>
+  <div class="panel" style="padding:12px">
+    <div class="label" style="margin-bottom:8px">Diagnostics</div>
+    <dl class="kv" id="diag"></dl>
+  </div>
+</aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const LS = { get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}}, set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}} };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const hex = (n,w=4) => n==null ? '—' : n.toString(16).toUpperCase().padStart(w,'0');
+
+/* ---------- event log + console mirror ---------- */
+const LEVELS = ['debug','info','ok','warn','error'];
+const shown = new Set(LS.get('lab.levels', ['info','ok','warn','error']));
+const events = [];
+const logEl = $('#log');
+function log(level, src, msg, data){
+  const e = { t:new Date(), level, src, msg, data };
+  events.push(e); if (events.length > 2000) events.shift();
+  const fn = level==='error' ? 'error' : level==='warn' ? 'warn' : level==='debug' ? 'debug' : 'log';
+  data !== undefined ? console[fn](`[wrover-lab][${src}] ${msg}`, data) : console[fn](`[wrover-lab][${src}] ${msg}`);
+  renderEv(e);
+}
+function renderEv(e){
+  const row = document.createElement('div');
+  row.className = 'ev ' + e.level; row.dataset.lvl = e.level; row.hidden = !shown.has(e.level);
+  const t = e.t.toTimeString().slice(0,8);
+  let extra = '';
+  if (e.data !== undefined) { try { extra = typeof e.data==='string' ? e.data : JSON.stringify(e.data); } catch { extra = String(e.data); } }
+  row.innerHTML = `<time>${t}</time><b>${e.level}</b><span><span style="color:var(--muted)">${esc(e.src)} ·</span> ${esc(e.msg)}${extra?`<em>${esc(extra.slice(0,400))}</em>`:''}</span>`;
+  logEl.appendChild(row);
+  if (logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 80) logEl.scrollTop = logEl.scrollHeight;
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+LEVELS.forEach(l => {
+  const b = document.createElement('button'); b.className='chip'; b.textContent=l; b.setAttribute('aria-pressed', shown.has(l));
+  b.onclick = () => { shown.has(l)?shown.delete(l):shown.add(l); b.setAttribute('aria-pressed', shown.has(l)); LS.set('lab.levels',[...shown]);
+    logEl.querySelectorAll('.ev').forEach(r => r.hidden = !shown.has(r.dataset.lvl)); };
+  $('#lvlChips').appendChild(b);
+});
+$('#bClearLog').onclick = () => { events.length=0; logEl.innerHTML=''; log('info','log','Log cleared'); };
+$('#bCopyLog').onclick = () => copy(events.map(e=>`${e.t.toISOString()} ${e.level.toUpperCase()} [${e.src}] ${e.msg}${e.data!==undefined?' '+JSON.stringify(e.data):''}`).join('\n'), 'Event log');
+window.addEventListener('error', ev => log('error','window', ev.message, `${ev.filename||''}:${ev.lineno||''}`));
+window.addEventListener('unhandledrejection', ev => log('error','promise', ev.reason?.message || String(ev.reason), ev.reason?.stack?.split('\n').slice(0,3).join(' | ')));
+async function copy(text, what){
+  try { await navigator.clipboard.writeText(text); log('ok','clipboard', `${what} copied`, `${text.length} chars`); }
+  catch(err){ log('warn','clipboard', `Clipboard refused (${err.name}). Text dumped to the browser console instead.`); console.log(text); }
+}
+
+/* ---------- tabs ---------- */
+const TABS = ['setup','live','devices','findings','imu','joy'];
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => showTab(t.dataset.tab));
+function showTab(name){
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab===name));
+  TABS.forEach(n => $('#v-'+n).hidden = n!==name);
+  LS.set('lab.tab', name);
+  if (name==='imu') IMU.onShow();
+  if (name==='joy') JOY.onShow();
+}
+
+/* ---------- pills / diagnostics ---------- */
+function pill(id, cls, text){ const p=$(id); p.className='pill '+(cls||''); p.lastChild.textContent=text; }
+const hasSerial = 'serial' in navigator;
+let serialAllowed = null;
+try { if (document.featurePolicy) serialAllowed = document.featurePolicy.allowsFeature('serial'); } catch {}
+if (!hasSerial) pill('#pSerial','bad','No Web Serial');
+else if (serialAllowed===false) pill('#pSerial','warn','Serial blocked by frame');
+else pill('#pSerial','ok','Web Serial ready');
+const ua = navigator.userAgentData?.brands?.map(b=>b.brand+' '+b.version).filter(b=>!/Not/.test(b)).join(', ') || navigator.userAgent.slice(0,60);
+const diag = [
+  ['Secure context', window.isSecureContext ? 'yes' : 'NO (needs HTTPS)'],
+  ['navigator.serial', hasSerial ? 'present' : 'missing'],
+  ['Frame policy', serialAllowed===null ? 'unknown' : serialAllowed ? 'serial allowed' : 'serial denied'],
+  ['In iframe', window.self !== window.top ? 'yes' : 'no'],
+  ['Browser', ua],
+];
+$('#diag').innerHTML = diag.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
+log('info','boot','WROVER Flash Lab loaded');
+log('debug','boot','Diagnostics', Object.fromEntries(diag));
+if (!hasSerial) log('warn','serial','This browser has no Web Serial. Use desktop Chrome or Edge, or tick "Simulate board".');
+else if (serialAllowed===false) log('warn','serial','This frame denies the serial permission. Expected in the preview; works once hosted on Vercel. Simulation is on.');
+if (!hasSerial || serialAllowed===false) $('#simMode').checked = true;
+
+/* ---------- known USB bridges ---------- */
+const BRIDGES = {
+  '1A86:7523':'CH340 (Freenove WROVER)', '1A86:55D4':'CH9102', '10C4:EA60':'CP2102', '0403:6001':'FTDI FT232',
+  '303A:1001':'ESP native USB-JTAG', '303A:0002':'ESP32-S2 native USB'
+};
+function bridgeName(info){ if(!info||info.usbVendorId==null) return 'unknown';
+  const k=`${hex(info.usbVendorId)}:${hex(info.usbProductId)}`; return `${BRIDGES[k]||'Unrecognised'} · ${k}`; }
+
+/* ---------- steps ---------- */
+function step(k, s){ const el=document.querySelector(`.step[data-k="${k}"]`); if(el) el.dataset.s=s; }
+function resetSteps(){ document.querySelectorAll('.step').forEach(s=>delete s.dataset.s); }
+
+/* ---------- firmware images ---------- */
+const DEFAULT_IMGS = [['bootloader','0x1000'],['partitions','0x8000'],['boot_app0','0xe000'],['app','0x10000']];
+const filesEl = $('#files');
+function addFileRow(name='image', addr='0x10000'){
+  const r=document.createElement('div'); r.className='frow';
+  const n = filesEl.children.length;
+  r.innerHTML=`<input type="text" id="fn${n}" value="${name}" aria-label="Image name"><input type="text" id="fa${n}" class="mono" value="${addr}" aria-label="Flash offset"><input type="file" id="ff${n}" accept=".bin,.hex,.ino,.elf" aria-label="${name} file"><div class="verdict" hidden></div>`;
+  const fileIn=r.children[2], addrIn=r.children[1];
+  r._recheck = async () => {
+    const f=fileIn.files[0];
+    if (!f) { r._check=r._file=r._bytes=null; r.querySelector('.verdict').hidden=true; summarize(); return; }
+    if (r._file!==f) { r._bytes=new Uint8Array(await f.arrayBuffer()); r._file=f; }
+    r._check = inspectImage(r._bytes, f.name, parseInt(addrIn.value));
+    showVerdict(r); summarize();
+    log(r._check.errors.length?'warn':'ok','verify',`${f.name}: ${r._check.errors.length?'failed checks':'passed checks'}`, r._check.errors.length ? r._check.errors : r._check.summary);
+  };
+  fileIn.onchange = () => { const f=fileIn.files[0]; if(f) log('info','flash',`Loaded ${f.name}`, `${f.size.toLocaleString()} bytes → ${addrIn.value}`); r._recheck().catch(e=>log('error','verify',e.message)); };
+  addrIn.onchange = () => r._recheck().catch(e=>log('error','verify',e.message));
+  filesEl.appendChild(r);
+}
+DEFAULT_IMGS.forEach(([n,a])=>addFileRow(n,a));
+$('#bAddFile').onclick = () => addFileRow('merged','0x0');
+
+/* ---------- esptool-js loader ---------- */
+let esptool = null;
+async function loadEsptool(){
+  if (esptool) return esptool;
+  const urls = ['https://cdn.jsdelivr.net/npm/esptool-js@0.4.5/bundle.js','https://cdn.jsdelivr.net/npm/esptool-js@0.4.5/+esm'];
+  for (const u of urls){
+    try { log('debug','esptool',`Importing ${u}`); esptool = await import(u); log('ok','esptool','esptool-js 0.4.5 loaded', Object.keys(esptool).slice(0,8)); return esptool; }
+    catch(err){ log('warn','esptool',`Import failed from ${u}`, err.message); }
+  }
+  throw new Error('Could not load esptool-js. Bundle it with your Vercel build (npm i esptool-js) instead of a CDN.');
+}
+
+/* ---------- state ---------- */
+const S = { port:null, transport:null, loader:null, info:null, sim:false, reader:null, monitoring:false };
+const terminal = { clean(){}, writeLine(d){ log('debug','esptool',d); }, write(d){ if(d.trim()) log('debug','esptool',d.trim()); } };
+
+function setConnected(on){
+  $('#bConnect').disabled=on; $('#bDisconnect').disabled=!on; $('#bFlash').disabled=!on; $('#bWifi').disabled=!on;
+  $('#bMon').disabled=!on; $('#bReset').disabled=!on; $('#bErase').disabled=!on;
+}
+
+/* ---------- connect + identify ---------- */
+$('#bConnect').onclick = async () => {
+  resetSteps(); S.sim = $('#simMode').checked;
+  try {
+    step('port','run');
+    if (S.sim) { await simConnect(); return; }
+    if (!hasSerial) throw new Error('Web Serial is unavailable in this browser.');
+    S.port = await navigator.serial.requestPort();
+    const pinfo = S.port.getInfo();
+    log('ok','serial','Port selected', pinfo);
+    pill('#pPort','ok', bridgeName(pinfo).split(' · ')[0]);
+    if (pinfo.usbVendorId===0x1A86) log('info','serial','CH340 bridge detected, matches the Freenove WROVER.');
+    step('port','ok');
+
+    const { ESPLoader, Transport } = await loadEsptool();
+    step('boot','run');
+    S.transport = new Transport(S.port, true);
+    S.loader = new ESPLoader({ transport:S.transport, baudrate:+$('#baud').value, terminal, debugLogging:false });
+    const chipDesc = await (S.loader.main ? S.loader.main() : S.loader.main_fn());
+    log('ok','boot','ROM bootloader answered', chipDesc);
+    step('boot','ok');
+
+    step('id','run');
+    const c = S.loader.chip;
+    const mac = await c.readMac(S.loader);
+    let features = [], xtal = null;
+    try { features = await c.getChipFeatures(S.loader); } catch(e){ log('warn','id','Feature read failed', e.message); }
+    try { xtal = await c.getCrystalFreq(S.loader); } catch {}
+    try { const fid = await (S.loader.readFlashId ? S.loader.readFlashId() : S.loader.read_flash_id()); const code=(fid>>16)&0xff;
+      if (code>=0x12 && code<=0x1A) S.flashMB = (1<<code)/1048576; log('info','id',`Flash chip ${S.flashMB||'?'} MB`, '0x'+fid.toString(16)); }
+    catch(e){ log('warn','id','Could not read the flash ID; checks assume 4 MB', e.message); }
+    setIdentity({ mac, chip: chipDesc, features, xtal, bridge: bridgeName(pinfo) });
+    step('id','ok');
+    setConnected(true);
+  } catch (err) { failStep(err); }
+};
+
+function failStep(err){
+  const running = document.querySelector('.step[data-s="run"]'); if (running) running.dataset.s='err';
+  let hint = '';
+  if (err.name==='NotFoundError') hint = 'No port chosen. The picker was closed.';
+  else if (err.name==='SecurityError') hint = 'Blocked by permissions policy. In an iframe the parent needs allow="serial".';
+  else if (err.name==='NetworkError' || /open/i.test(err.message)) hint = 'Port is busy. Close Arduino IDE / serial monitors using it.';
+  else if (/sync|connect|timed out/i.test(err.message)) hint = 'No bootloader response. Hold BOOT, tap EN, release BOOT, then retry. Try 115200 baud.';
+  log('error', running?.dataset.k || 'setup', err.message, hint || err.stack?.split('\n')[1]);
+}
+
+function macToId(mac){ return 'wrover-' + mac.split(':').slice(3).join('').toLowerCase(); }
+function setIdentity(d){
+  S.info = d; const id = macToId(d.mac);
+  const vals = [id, d.mac.toUpperCase(), d.chip, (d.features||[]).join(', ')||'—', d.xtal?d.xtal+' MHz':'—', d.bridge, S.flashMB ? S.flashMB+' MB' : 'unknown (4 MB assumed)'];
+  [...$('#idCard').querySelectorAll('dd')].forEach((dd,i)=>dd.textContent=vals[i]);
+  const reg = loadReg(); const known = reg.find(r=>r.mac===d.mac.toUpperCase());
+  $('#idTag').textContent = known ? 'known device' : 'new device'; $('#idTag').className = 'tag ' + (known?'g':'w');
+  log(known?'info':'ok','id', known ? `Recognised ${id} (seen ${new Date(known.seen).toLocaleString()})` : `New device ${id}`, { mac:d.mac, chip:d.chip });
+  upsertReg({ id, mac:d.mac.toUpperCase(), chip:d.chip.split(' (')[0], bridge:d.bridge.split(' · ')[0], fw: known?.fw||'—', seen:Date.now() });
+  recheckAll();
+}
+
+$('#bDisconnect').onclick = async () => {
+  try { await stopMonitor(); if (S.transport) await S.transport.disconnect(); else if (S.port?.readable) await S.port.close(); }
+  catch(e){ log('warn','serial','Disconnect error', e.message); }
+  S.port=S.transport=S.loader=null; S.info=null; setConnected(false); pill('#pPort','','No port'); log('info','serial','Disconnected'); recheckAll();
+};
+
+/* ---------- flash ---------- */
+$('#bFlash').onclick = async () => {
+  const rowsEl=[...filesEl.children].filter(r=>r.children[2].files[0]);
+  if (!rowsEl.length && !S.sim){ log('warn','flash','Choose at least one .bin file first.'); return; }
+  for (const r of rowsEl) await r._recheck();
+  const rows=rowsEl.map(r=>({ name:r.children[0].value, addr:parseInt(r.children[1].value), file:r._file, bytes:r._bytes, check:r._check }));
+  const problems=rows.flatMap(r=>r.check.errors.map(e=>`${r.file.name}: ${e}`));
+  const sorted=[...rows].filter(r=>!isNaN(r.addr)).sort((a,b)=>a.addr-b.addr);
+  for (let i=1;i<sorted.length;i++){ const a=sorted[i-1], b=sorted[i]; if (a.addr+a.bytes.length > b.addr) problems.push(`${a.file.name} (0x${a.addr.toString(16)}–0x${(a.addr+a.bytes.length).toString(16)}) overlaps ${b.file.name} at 0x${b.addr.toString(16)}.`); }
+  if (problems.length){ step('flash','err'); setSum('err', `Blocked, nothing was written. ${problems[0]}`); log('error','verify',`Flash blocked: ${problems.length} problem(s). Nothing was written.`, problems); return; }
+  if (rows.length) log('ok','verify',`${rows.length} image(s) passed pre-flash checks`, rows.map(r=>r.check.summary));
+  step('flash','run'); $('#bFlash').disabled=true; const t0=performance.now();
+  IMU.reset(); JOY.reset();
+  try {
+    if (S.sim) { await simFlash(rows); }
+    else {
+      await ensureLoader();
+      const fileArray = rows.map(r=>({ data:u8ToStr(r.bytes), address:r.addr }));
+      const total = fileArray.reduce((a,f)=>a+f.data.length,0);
+      log('info','flash',`Writing ${fileArray.length} image(s), ${total.toLocaleString()} bytes`, rows.map(r=>`${r.name}@0x${r.addr.toString(16)}`));
+      await S.loader.writeFlash({ fileArray, flashSize:'keep', flashMode:'keep', flashFreq:'keep', eraseAll:$('#eraseAll').checked, compress:true,
+        reportProgress:(i,w,t)=>progress(i,w,t,fileArray.length) });
+      log('info','flash','Opening the monitor, then resetting into the new firmware');
+      await openMonitor(); await hardReset();
+    }
+    const secs=((performance.now()-t0)/1000).toFixed(1);
+    log('ok','flash',`Flash complete in ${secs}s`); $('#progTxt').textContent=`Done in ${secs}s`;
+    step('flash','ok');
+    const proj = rows.map(r=>r.check.project).find(Boolean);
+    upsertReg({ ...currentReg(), fw: proj || rows[0]?.file?.name || 'sim-0.1.0.bin', seen:Date.now() });
+  } catch(err){ failStep(err); $('#progTxt').textContent='Failed. See event log.'; }
+  finally { $('#bFlash').disabled=false; }
+};
+function progress(i,w,t,n){ const pct=Math.round(w/t*100); $('#prog').style.width=pct+'%'; $('#progTxt').textContent=`Image ${i+1}/${n} · ${pct}% · ${w.toLocaleString()} / ${t.toLocaleString()} B`; if(pct%25===0) log('debug','flash',`Image ${i+1} ${pct}%`); }
+async function hardReset(){
+  if (S.sim) { log('info','reset','(sim) EN pulsed'); return; }
+  if (S.transport) {
+    try { await S.transport.setDTR(false); await S.transport.setRTS(true); await sleep(120); await S.transport.setRTS(false); log('info','reset','EN pulsed via RTS (bootloader session)'); return; }
+    catch(e){ log('debug','reset','Transport reset failed, trying the port directly', e.message); }
+  }
+  if (S.port?.readable) {
+    await S.port.setSignals({ dataTerminalReady:false, requestToSend:true }); await sleep(120); await S.port.setSignals({ requestToSend:false });
+    log('info','reset','EN pulsed via RTS'); return;
+  }
+  throw new Error('The port is not open. Connect the board first.');
+}
+$('#bReset').onclick = () => hardReset().catch(e=>log('error','reset',e.message));
+
+/* ---------- serial monitor (plain 115200, after esptool releases port) ---------- */
+const monEl = $('#monitor'), imuMonEl = $('#imuMon'), monEls = [monEl, imuMonEl, $('#joyMon')]; let monBuf = '', monPending = '', monRAF = 0;
+function monWrite(s){
+  monBuf += s; let i; while((i=monBuf.indexOf('\n'))>=0){ handleLine(monBuf.slice(0,i).trim()); monBuf=monBuf.slice(i+1); }
+  if (monBuf.length > 4096) monBuf = '';
+  monPending += s; if (monPending.length > 16000) monPending = monPending.slice(-12000);
+  if (!monRAF) monRAF = requestAnimationFrame(flushMon);
+}
+function flushMon(){
+  monRAF = 0; const chunk = monPending; monPending = '';
+  for (const el of monEls) {
+    if (el.dataset.paused==='1') continue;
+    if (el.dataset.used!=='1'){ el.textContent=''; el.dataset.used='1'; }
+    let t = el.textContent + chunk; if (t.length > 16000) t = t.slice(-12000);
+    el.textContent = t; el.scrollTop = el.scrollHeight;
+  }
+}
+function handleLine(line){
+  if (!line.startsWith('{')) {
+    if (/rst:0x/i.test(line)) log(/rst:0x(1|c|10) /i.test(line)?'info':'error','device', line);
+    else if (/Guru Meditation|panic|Brownout|abort\(\)/i.test(line)) log('error','device', line);
+    return;
+  }
+  let j; try { j=JSON.parse(line); } catch { log('warn','device','Unparseable JSON line', line.slice(0,120)); return; }
+  if (j.t==='imu') { IMU.sample(j); return; }
+  if (j.t==='joy') { JOY.sample(j); return; }
+  if (j.t==='err') { log('error','device', j.msg||'Device error', j); return; }
+  if (j.t==='selftest') { log(j.pass?'ok':'warn','selftest', j.pass ? 'Board self-test passed' : 'Board self-test reported a problem', j); IMU.selftest(j); JOY.selftest(j); }
+  else log('ok','device','JSON from board', j);
+  if (j.id && j.t!=='selftest') { upsertReg({ ...currentReg(), fwId:j.id, fw: j.fw ? `${j.fw}${j.ver?' '+j.ver:''}` : currentReg().fw, caps:j.caps, seen:Date.now() }); IMU.hello(j); JOY.hello(j); }
+  if (j.ok && j.saved==='wifi') step('wifi','ok');
+  if (S.info && j.id && j.id!==macToId(S.info.mac)) log('warn','id',`Board reports ${j.id} but MAC says ${macToId(S.info.mac)}. Check the ID formula in firmware.`);
+}
+function setMonBtns(){ $('#bMon').textContent = S.monitoring ? 'Close monitor' : 'Open monitor'; for (const id of ['#bImuListen','#bJoyListen']) $(id).textContent = S.monitoring ? 'Listening on USB' : 'Listen on USB'; }
+async function openMonitor(){
+  if (S.monitoring) return;
+  if (S.sim) { S.monitoring=true; setMonBtns(); return; }
+  if (!S.port) throw new Error('No board connected. Click Connect board in Setup first.');
+  if (S.transport) { try { await S.transport.disconnect(); } catch{} S.transport=null; S.loader=null; log('info','serial','Released bootloader session'); }
+  if (!S.port.readable) await S.port.open({ baudRate:115200 });
+  try { await S.port.setSignals({ dataTerminalReady:false, requestToSend:false }); } catch {}
+  S.monitoring=true; setMonBtns(); log('info','monitor','Listening at 115200');
+  const dec = new TextDecoder();
+  S.monLoop = (async () => {
+    while (S.port?.readable && S.monitoring) {
+      S.reader = S.port.readable.getReader();
+      try { for(;;){ const {value,done}=await S.reader.read(); if(done) break; monWrite(dec.decode(value,{stream:true})); } }
+      catch(e){ if (S.monitoring) log('warn','monitor','Read interrupted', e.message); }
+      finally { try{S.reader.releaseLock()}catch{} }
+    }
+  })();
+}
+async function stopMonitor(){ if (!S.monitoring && !S.monLoop) return; S.monitoring=false; setMonBtns(); try{ await S.reader?.cancel(); }catch{} try{ await S.monLoop; }catch{} S.monLoop=null; }
+$('#bMon').onclick = () => (S.monitoring ? stopMonitor() : openMonitor()).catch(e=>log('error','monitor',e.message));
+async function serialSendLine(line){
+  if (IMU.simCmd(line) || JOY.simCmd(line)) return;
+  if (S.sim) { try { return simDevice(JSON.parse(line)); } catch { return; } }
+  if (!S.port) throw new Error('No board connected. Click Connect board in Setup first.');
+  if (!S.monitoring) await openMonitor();
+  const w = S.port.writable.getWriter(); try { await w.write(new TextEncoder().encode(line+'\n')); } finally { w.releaseLock(); }
+  log('debug','serial','→ '+line.replace(/"pass":"[^"]*"/,'"pass":"•••"'));
+}
+function serialSend(obj){ return serialSendLine(JSON.stringify(obj)); }
+
+/* ---------- wifi provisioning ---------- */
+$('#wifiForm').onsubmit = async ev => {
+  ev.preventDefault();
+  const ssid=$('#ssid').value.trim(), pass=$('#wpass').value, hub=$('#hubUrl').value.trim();
+  if (!ssid){ log('warn','wifi','Enter the SSID first.'); return; }
+  if (pass && pass.length<8) log('warn','wifi','WPA2 passwords are 8+ characters. The board will fail to join.');
+  step('wifi','run');
+  log('info','wifi','Sending provisioning packet', { cmd:'wifi', ssid, pass:'•'.repeat(pass.length), hub });
+  try { await serialSend({ cmd:'wifi', ssid, pass, hub });
+    setTimeout(()=>{ const s=document.querySelector('.step[data-k="wifi"]'); if(s.dataset.s==='run'){ s.dataset.s='err'; log('error','wifi','No {"ok":true} reply in 8s.','Is the provisioning sketch flashed? Open the monitor and check boot output.'); } },8000);
+  } catch(e){ failStep(e); }
+};
+
+/* ---------- registry ---------- */
+const EXAMPLES = [
+  { id:'wrover-3fa21c', mac:'24:6F:28:3F:A2:1C', chip:'ESP32-D0WD-V3', bridge:'CH340', fw:'input-node-0.3.bin', seen:Date.now()-3600e3*5, example:true },
+  { id:'wrover-91be07', mac:'94:B5:55:91:BE:07', chip:'ESP32-D0WD-V3', bridge:'CH340', fw:'output-node-0.3.bin', seen:Date.now()-86400e3, example:true },
+];
+function loadReg(){ const r=LS.get('lab.registry',null); return r && r.length ? r : EXAMPLES; }
+function saveReg(r){ LS.set('lab.registry', r.filter(x=>!x.example)); renderReg(); }
+function currentReg(){ return S.info ? (loadReg().find(r=>r.mac===S.info.mac.toUpperCase())||{}) : {}; }
+function upsertReg(d){ if(!d.mac) return; let r=loadReg().filter(x=>!x.example); const i=r.findIndex(x=>x.mac===d.mac); i>=0 ? r[i]={...r[i],...d} : r.push(d); saveReg(r); }
+function renderReg(){
+  const r=loadReg();
+  $('#regBody').innerHTML = r.map(d=>`<tr><td class="mono" style="color:var(--green-hi)">${esc(d.id)} ${d.example?'<span class="tag w">example</span>':''}</td><td class="mono">${esc(d.mac)}</td><td>${esc(d.chip||'—')}</td><td>${esc(d.bridge||'—')}</td><td class="mono">${esc(d.fw||'—')}</td><td class="mono">${new Date(d.seen).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td><td>${d.example?'':`<button class="btn sm" data-del="${esc(d.mac)}">Forget</button>`}</td></tr>`).join('');
+  $('#regBody').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ saveReg(loadReg().filter(x=>!x.example && x.mac!==b.dataset.del)); log('info','registry',`Forgot ${b.dataset.del}`); });
+}
+renderReg();
+$('#bCopyReg').onclick = () => copy(JSON.stringify(loadReg(),null,2),'Registry');
+$('#bClearReg').onclick = () => { LS.set('lab.registry',[]); renderReg(); log('info','registry','Registry cleared'); };
+
+/* ---------- simulation (preview frame / no hardware) ---------- */
+async function simConnect(){
+  log('info','sim','Simulation mode. No hardware is touched.');
+  await sleep(400); pill('#pPort','warn','Simulated CH340'); log('ok','serial','(sim) Port selected', { usbVendorId:0x1A86, usbProductId:0x7523 }); step('port','ok');
+  step('boot','run'); log('debug','esptool','(sim) Connecting.... DTR/RTS pulse'); await sleep(700);
+  log('ok','boot','(sim) ROM bootloader answered','ESP32-D0WD-V3 (revision v3.1)'); step('boot','ok');
+  step('id','run'); await sleep(400); S.flashMB = 4;
+  const mac = S.simMac || (S.simMac = ['24','6F','28',...Array.from({length:3},()=>Math.floor(Math.random()*256).toString(16).padStart(2,'0'))].join(':'));
+  setIdentity({ mac, chip:'ESP32-D0WD-V3 (revision v3.1)', features:['Wi-Fi','BT','Dual Core','240MHz','VRef calibration in efuse'], xtal:40, bridge:'CH340 (Freenove WROVER) · 1A86:7523 (sim)' });
+  step('id','ok'); setConnected(true);
+}
+async function simFlash(rows){
+  const imgs = rows.length ? rows.map(r=>({name:r.name,size:r.file.size})) : [{name:'bootloader',size:17104},{name:'partitions',size:3072},{name:'boot_app0',size:8192},{name:'app',size:812400}];
+  log('info','flash',`(sim) Writing ${imgs.length} image(s)`, imgs);
+  for (let i=0;i<imgs.length;i++){ const t=imgs[i].size; for (let w=0; w<=t; w+=Math.max(4096, t/12|0)){ progress(i,Math.min(w,t),t,imgs.length); await sleep(60); } progress(i,t,t,imgs.length); log('debug','flash',`(sim) ${imgs[i].name} hash verified`); }
+  monWrite('ets Jun  8 2016 00:22:57\nrst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)\n');
+  await sleep(200);
+  const tagged = re => rows.some(r=>re.test((r.check?.project||'')+r.file.name));
+  if (tagged(/mpu6050/i)) IMU.startSim(); else if (tagged(/joystick/i)) JOY.startSim(); else simDevice({cmd:'hello'});
+}
+function simDevice(obj){
+  if (!S.info) return;
+  const id = macToId(S.info.mac);
+  setTimeout(()=>{
+    if (obj.cmd==='hello') monWrite(`{"id":"${id}","fw":"0.1.0","caps":["potentiometer","button","camera"]}\n`);
+    if (obj.cmd==='wifi'){ monWrite(`{"ok":true,"id":"${id}","saved":"wifi"}\n`); monWrite(`[net] joining "${obj.ssid}"...\n[net] got IP 192.168.1.${40+Math.random()*50|0}\n`); }
+  }, 500);
+}
+
+/* ---------- live dashboard ---------- */
+const nodes = new Map(); let ws=null, simTimer=null;
+function nodeCard(d){
+  let el = document.getElementById('n-'+d.device_id);
+  if (!el){ el=document.createElement('div'); el.className='node'; el.id='n-'+d.device_id;
+    const caps=d.capabilities||[];
+    el.innerHTML = `<header><h3 class="mono">${esc(d.device_id)}</h3><span class="tag ${d.example?'w':'g'}">${d.example?'example':'live'}</span></header>
+      <div class="chips">${caps.map(c=>`<span class="tag">${esc(c)}</span>`).join('')}</div>
+      ${caps.includes('potentiometer')?`<svg class="dial" viewBox="0 0 100 100" aria-label="Potentiometer"><circle cx="50" cy="50" r="40" fill="none" stroke="var(--line)" stroke-width="8" stroke-dasharray="188 251" transform="rotate(135 50 50)"/><circle class="arc" cx="50" cy="50" r="40" fill="none" stroke="var(--green-hi)" stroke-width="8" stroke-linecap="round" stroke-dasharray="0 251" transform="rotate(135 50 50)"/><text class="val" x="50" y="56" text-anchor="middle" fill="var(--fg)" font-family="JetBrains Mono, monospace" font-size="16">0</text></svg>`:''}
+      ${caps.includes('button')?`<div class="btnlamp"><i></i><span>button</span></div>`:''}
+      ${caps.includes('actuator')?`<label class="label" for="r-${esc(d.device_id)}">Actuator output</label><input type="range" id="r-${esc(d.device_id)}" min="0" max="4095" value="0">`:''}
+      ${caps.includes('camera')?`<div class="mono" style="font-size:11px;color:var(--muted)">Camera at http://&lt;ip&gt;:81/stream is blocked from HTTPS pages.</div>`:''}
+      <div class="mono seen" style="font-size:11px;color:var(--dim)">waiting for telemetry</div>`;
+    $('#nodes').appendChild(el);
+    const r=el.querySelector('input[type=range]'); if (r) r.oninput = () => sendCmd(d.device_id, +r.value);
+    log('ok','hub',`Rendered UI for ${d.device_id}`, caps);
+  }
+  nodes.set(d.device_id, el); return el;
+}
+function telemetry(d){
+  const el = nodes.get(d.device_id) || nodeCard({device_id:d.device_id, capabilities:Object.keys(d).filter(k=>['pot','button'].includes(k)).map(k=>k==='pot'?'potentiometer':k)});
+  if (d.pot!=null){ const f=Math.max(0,Math.min(1,d.pot/4095)); const a=el.querySelector('.arc'); if(a) a.setAttribute('stroke-dasharray',`${(188*f).toFixed(1)} 251`); const v=el.querySelector('.val'); if(v) v.textContent=d.pot; }
+  if (d.button!=null) el.querySelector('.btnlamp')?.classList.toggle('on', !!d.button);
+  el.querySelector('.seen').textContent = 'updated ' + new Date().toLocaleTimeString();
+}
+function sendCmd(id, value){
+  const msg={ device_id:id, cmd:'set', value };
+  if (ws?.readyState===1){ ws.send(JSON.stringify(msg)); log('debug','hub','→ '+id, msg); }
+  else log('debug','hub','(sim) → '+id, msg);
+}
+function handleHub(raw){
+  let j; try { j=JSON.parse(raw); } catch { log('warn','hub','Non-JSON frame', String(raw).slice(0,120)); return; }
+  if (j.capabilities) { log('info','hub',`Capabilities from ${j.device_id}`, j.capabilities); nodeCard(j); }
+  else if (j.device_id) telemetry(j);
+  else log('debug','hub','Frame', j);
+}
+$('#bWs').onclick = () => {
+  if (ws){ ws.close(); return; }
+  const url=$('#wsUrl').value.trim();
+  if (location.protocol==='https:' && url.startsWith('ws://')){ log('error','hub','Blocked: ws:// from an HTTPS page is mixed content.','Use wss://, a tunnel, or serve the dashboard from the hub.'); return; }
+  try { ws=new WebSocket(url); } catch(e){ log('error','hub',e.message); ws=null; return; }
+  pill('#pHub','warn','Hub connecting'); log('info','hub',`Connecting ${url}`);
+  ws.onopen=()=>{ pill('#pHub','ok','Hub online'); log('ok','hub','Connected'); $('#bWs').textContent='Disconnect hub'; stopSim(); $('#liveTag').textContent='live'; $('#liveTag').className='tag g'; };
+  ws.onmessage=e=>handleHub(e.data);
+  ws.onerror=()=>log('error','hub','Socket error. Check the URL, certificate and that the hub is running.');
+  ws.onclose=e=>{ pill('#pHub','bad','Hub offline'); log('warn','hub',`Closed (code ${e.code})`, e.reason||undefined); ws=null; $('#bWs').textContent='Connect hub'; };
+};
+function startSim(){
+  [{device_id:'wrover-3fa21c',capabilities:['potentiometer','button','camera'],example:true},{device_id:'wrover-91be07',capabilities:['actuator'],example:true}].forEach(nodeCard);
+  let t=0; simTimer=setInterval(()=>{ t+=.15; telemetry({device_id:'wrover-3fa21c', pot:Math.round(2047+1800*Math.sin(t)), button: Math.sin(t*2.3)>.85?1:0}); },300);
+  $('#bSimLive').textContent='Stop simulation'; log('info','hub','Example telemetry running (no hub connected)');
+}
+function stopSim(){ clearInterval(simTimer); simTimer=null; $('#bSimLive').textContent='Run simulation'; }
+$('#bSimLive').onclick = () => simTimer ? (stopSim(), log('info','hub','Simulation stopped')) : startSim();
+startSim();
+
+/* ---------- firmware image inspection (runs before anything is written) ---------- */
+const CHIP_IDS = {0:'ESP32',2:'ESP32-S2',5:'ESP32-C3',9:'ESP32-S3',12:'ESP32-C2',13:'ESP32-C6',16:'ESP32-H2',18:'ESP32-P4'};
+const FLASH_CODES = {0:1,1:2,2:4,3:8,4:16,5:32,6:64,7:128};
+const FAMILIES = ['ESP32-S2','ESP32-S3','ESP32-C2','ESP32-C3','ESP32-C6','ESP32-H2','ESP32-P4'];
+const fmtRev = r => r==null ? '?' : r>=100 ? `${(r/100)|0}.${r%100}` : String(r);
+const fmtMB = b => (b/1048576).toFixed(b%1048576 ? 1 : 0)+' MB';
+const cap1 = s => s[0].toUpperCase()+s.slice(1);
+function u8ToStr(u){ let s=''; for(let i=0;i<u.length;i+=0x8000) s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000)); return s; }
+function target(){
+  const name = S.info?.chip || 'ESP32';
+  const fam = FAMILIES.find(f=>name.includes(f)) || 'ESP32';
+  const rv = name.match(/revision v(\d+)\.(\d+)/);
+  return { fam, id:+Object.keys(CHIP_IDS).find(k=>CHIP_IDS[k]===fam), rev: rv ? +rv[1]*100 + +rv[2] : null,
+           flashMB: S.flashMB || 4, assumed: !S.info, flashAssumed: !S.flashMB };
+}
+function imgHdr(u8, off){
+  if (u8.length < off+24 || u8[off]!==0xE9) return null;
+  const dv = new DataView(u8.buffer, u8.byteOffset);
+  return { segs:u8[off+1], flashMB:FLASH_CODES[u8[off+3]>>4], chipId:dv.getUint16(off+12,true), minRev:dv.getUint16(off+15,true), maxRev:dv.getUint16(off+17,true) };
+}
+function appDesc(u8, off){
+  const d = off+32; if (u8.length < d+144) return null;
+  const dv = new DataView(u8.buffer, u8.byteOffset);
+  if (dv.getUint32(d,true)!==0xABCD5432) return null;
+  const str=(o,n)=>{ let s=''; for(let i=0;i<n;i++){ const c=u8[d+o+i]; if(!c || c===0xFF) break; s+=String.fromCharCode(c); } return s; };
+  return { version:str(16,32), project:str(48,32), time:str(80,16), date:str(96,16), idf:str(112,32) };
+}
+function partTable(u8, off){
+  const out=[], dv=new DataView(u8.buffer, u8.byteOffset);
+  for (let p=off; p+32<=u8.length && p<off+0xC00; p+=32){
+    if (u8[p]!==0xAA || u8[p+1]!==0x50) break;
+    let label=''; for(let i=0;i<16;i++){ const c=u8[p+12+i]; if(!c || c===0xFF) break; label+=String.fromCharCode(c); }
+    out.push({ type:u8[p+2], sub:u8[p+3], offset:dv.getUint32(p+4,true), size:dv.getUint32(p+8,true), label });
+  }
+  return out;
+}
+function checkHdr(h, label, t, errors){
+  const L = cap1(label);
+  if (h.chipId!==t.id) errors.push(`${L} was built for ${CHIP_IDS[h.chipId]||'chip id '+h.chipId}, but ${t.assumed?'this board should be':'the connected chip is'} ${t.fam}. Recompile with "ESP32 Wrover Module" selected.`);
+  if (t.rev!=null && h.minRev && h.minRev!==0xFFFF && t.rev < h.minRev) errors.push(`${L} needs chip revision v${fmtRev(h.minRev)} or newer; this chip is v${fmtRev(t.rev)}.`);
+  if (t.rev!=null && h.maxRev && h.maxRev!==0xFFFF && t.rev > h.maxRev) errors.push(`${L} supports chip revisions up to v${fmtRev(h.maxRev)}; this chip is v${fmtRev(t.rev)}.`);
+  if (h.flashMB && h.flashMB > t.flashMB) errors.push(`${L} header expects ${h.flashMB} MB flash; the board has ${t.flashMB} MB${t.flashAssumed?' (assumed)':''}.`);
+}
+function inspectImage(u8, fname, addr){
+  const t=target(), errors=[], warns=[]; let kind='unknown', summary='', desc=null;
+  const kb = (u8.length/1024).toFixed(0)+' KB', hx = a => '0x'+a.toString(16);
+  const head = String.fromCharCode(...u8.subarray(0,64)), lower = fname.toLowerCase();
+  if (/\.(ino|cpp|c|h)$/.test(lower) || /#include|void\s+setup/.test(head)) {
+    kind='source'; summary='Arduino source code';
+    errors.push('This is a sketch, not compiled firmware. Open it in Arduino IDE, pick "ESP32 Wrover Module", run Sketch → Export Compiled Binary, and choose the .merged.bin it makes.');
+  } else if (/^:[0-9A-Fa-f]{10}/.test(head)) {
+    kind='hex'; summary='Intel HEX (AVR)';
+    errors.push('This is compiled for an AVR chip (Uno/Nano) and cannot run on an ESP32. Recompile the same .ino with the ESP32 board selected.');
+  } else if (head.startsWith('\x7FELF')) {
+    kind='elf'; summary='ELF debug file';
+    errors.push('Flash the .bin from the same build folder, not the .elf.');
+  } else if (u8.length > 0x10000 && imgHdr(u8,0x1000)) {
+    kind='merged';
+    checkHdr(imgHdr(u8,0x1000), 'bootloader', t, errors);
+    const parts = partTable(u8, 0x8000);
+    if (!parts.length) errors.push('No partition table at 0x8000 inside the merged image.');
+    const app = parts.find(p=>p.type===0 && (p.sub===0x00 || p.sub===0x10));
+    if (parts.length && !app) errors.push('Partition table has no factory or ota_0 app slot.');
+    if (app) {
+      const ah = imgHdr(u8, app.offset);
+      if (!ah) errors.push(`No app image at ${hx(app.offset)} (partition "${app.label}").`);
+      else { checkHdr(ah, 'app', t, errors); desc = appDesc(u8, app.offset);
+        let end = Math.min(u8.length, app.offset+app.size); while (end > app.offset && u8[end-1]===0xFF) end--;
+        if (app.offset+app.size <= u8.length && end-app.offset > app.size) errors.push(`App (${fmtMB(end-app.offset)}) is larger than its ${fmtMB(app.size)} partition.`); }
+    }
+    parts.forEach(p=>{ if (p.offset+p.size > t.flashMB*1048576) errors.push(`Partition "${p.label}" ends past the ${t.flashMB} MB flash. Pick a partition scheme for 4 MB.`); });
+    if (addr!==0) errors.push(`Merged images must be written at 0x0, not ${hx(addr)}.`);
+    summary = `Merged image · ${kb} · partitions: ${parts.map(p=>p.label).join(', ')||'none'}` + (desc ? ` · ${desc.project} ${desc.version} · IDF ${desc.idf} · built ${desc.date} ${desc.time}` : '');
+  } else if (u8[0]===0xAA && u8[1]===0x50) {
+    kind='partitions'; const parts = partTable(u8,0);
+    summary = `Partition table · ${parts.map(p=>`${p.label}@${hx(p.offset)}`).join(', ')}`;
+    if (addr!==0x8000) warns.push(`Partition tables normally go at 0x8000 (you set ${hx(addr)}).`);
+    parts.forEach(p=>{ if (p.offset+p.size > t.flashMB*1048576) errors.push(`Partition "${p.label}" ends past the ${t.flashMB} MB flash.`); });
+  } else if (imgHdr(u8,0)) {
+    const h = imgHdr(u8,0); checkHdr(h, 'image', t, errors); desc = appDesc(u8,0);
+    if (desc) {
+      kind='app'; summary = `App · ${desc.project} ${desc.version} · IDF ${desc.idf} · ${kb}`;
+      if (addr < 0x10000) errors.push(`An app below 0x10000 would overwrite the bootloader or partition table (you set ${hx(addr)}).`);
+      else if (addr!==0x10000) warns.push(`Arduino's default app slot is 0x10000. Check your partition table for ${hx(addr)}.`);
+    } else {
+      kind='bootloader'; summary = `Bootloader · ${CHIP_IDS[h.chipId]||'?'} · ${kb}`;
+      if (t.fam==='ESP32' && addr!==0x1000) errors.push(`The ESP32 bootloader must be at 0x1000 (you set ${hx(addr)}).`);
+    }
+  } else if (u8.length===8192 && u8.every(b=>b===0xFF || b===0x00)) {
+    kind='otadata'; summary='OTA data (boot_app0) · 8 KB';
+    if (addr!==0xe000) warns.push('boot_app0 normally goes at 0xe000.');
+  } else {
+    summary='Unknown file';
+    errors.push('Not a recognised ESP32 image (no 0xE9 header). Pick the .bin from an ESP32 build.');
+  }
+  if (isNaN(addr)) errors.push('Offset is not a number. Use hex like 0x10000.');
+  else if (!['source','hex','elf','unknown'].includes(kind) && addr+u8.length > t.flashMB*1048576) errors.push(`Ends at ${hx(addr+u8.length)}, past the end of ${t.flashMB} MB flash.`);
+  return { kind, summary, errors, warns, project: desc?.project || null };
+}
+function showVerdict(r){
+  const v=r.querySelector('.verdict'), c=r._check; v.hidden=false;
+  v.className = 'verdict ' + (c.errors.length ? 'err' : c.warns.length ? 'warn' : 'ok');
+  v.textContent = [(c.errors.length?'✕ ':'✓ ')+c.summary, ...c.errors.map(e=>'  ✕ '+e), ...c.warns.map(w=>'  ! '+w)].join('\n');
+}
+function setSum(cls, text){ const el=$('#verifySum'); el.className='mono sum '+cls; el.textContent=text; }
+function summarize(){
+  const rs=[...filesEl.children].filter(r=>r._check);
+  if (!rs.length) return setSum('', 'Choose a file to check it against the board.');
+  const e=rs.reduce((a,r)=>a+r._check.errors.length,0), w=rs.reduce((a,r)=>a+r._check.warns.length,0), t=target();
+  const base = t.assumed ? 'against a standard ESP32 WROVER (connect the board for an exact check)' : `against ${t.fam} v${fmtRev(t.rev)}, ${t.flashMB} MB flash`;
+  setSum(e?'err':w?'warn':'ok', e ? `${e} blocking problem${e>1?'s':''}. Flash stays blocked until fixed.` : `${rs.length} image${rs.length>1?'s':''} checked ${base}${w?` · ${w} warning${w>1?'s':''}`:''}`);
+}
+function recheckAll(){ [...filesEl.children].forEach(r=>{ if (r._file) r._recheck().catch(e=>log('error','verify',e.message)); }); }
+
+/* ---------- reliable bootloader re-entry (flash or erase after the monitor ran) ---------- */
+async function ensureLoader(){
+  if (S.loader) return S.loader;
+  if (!S.port) throw new Error('No port. Click Connect board first.');
+  await stopMonitor();
+  if (S.port.readable) { try { await S.port.close(); } catch(e){ log('debug','serial','Close before bootloader', e.message); } }
+  const { ESPLoader, Transport } = await loadEsptool();
+  log('info','boot','Re-entering the ROM bootloader');
+  S.transport = new Transport(S.port, true);
+  S.loader = new ESPLoader({ transport:S.transport, baudrate:+$('#baud').value, terminal, debugLogging:false });
+  await (S.loader.main ? S.loader.main() : S.loader.main_fn());
+  return S.loader;
+}
+let eraseArm = 0;
+$('#bErase').onclick = async () => {
+  const b=$('#bErase');
+  if (Date.now()-eraseArm > 4000) {
+    eraseArm=Date.now(); b.textContent='Click again to erase everything';
+    setTimeout(()=>{ if (eraseArm && Date.now()-eraseArm>=4000) { b.textContent='Erase entire flash'; eraseArm=0; } }, 4100);
+    log('warn','erase','Erasing removes the firmware and saved settings (Wi-Fi in NVS). Click again within 4 s to confirm.');
+    return;
+  }
+  eraseArm=0; b.textContent='Erase entire flash'; b.disabled=true; step('flash','run'); $('#progTxt').textContent='Erasing… this takes 10–30 s';
+  const t0=performance.now();
+  try {
+    IMU.reset(); JOY.reset();
+    if (S.sim) { IMU.stopSim(); JOY.stopSim(); await sleep(1500); } else { await ensureLoader(); await S.loader.eraseFlash(); }
+    log('ok','erase',`Flash erased in ${((performance.now()-t0)/1000).toFixed(1)}s. The board has no program until you flash again.`);
+    $('#progTxt').textContent='Erased. Flash new firmware next.'; step('flash','ok');
+    upsertReg({ ...currentReg(), fw:'(erased)', seen:Date.now() });
+  } catch(e){ failStep(e); $('#progTxt').textContent='Erase failed. See event log.'; }
+  finally { b.disabled=!S.port && !S.sim; }
+};
+
+/* ---------- shared: 3D arena (tilting plane + ball) and monitor pause ---------- */
+function buildArena(canvas, stage){
+  if (typeof THREE==='undefined') throw new Error('three.js did not load from cdnjs');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio||1)); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(0x050605); scene.fog = new THREE.Fog(0x050605, 20, 42);
+  const camera = new THREE.PerspectiveCamera(42, 16/10, .1, 100); camera.position.set(0, 10.5, 12.5); camera.lookAt(0, -.6, 0);
+  scene.add(new THREE.HemisphereLight(0xdfffe0, 0x0a0b0a, .55));
+  const sun = new THREE.DirectionalLight(0xffffff, .9); sun.position.set(5, 12, 6); sun.castShadow=true; sun.shadow.mapSize.set(1024,1024);
+  Object.assign(sun.shadow.camera, { left:-8, right:8, top:8, bottom:-8 }); scene.add(sun);
+  const rim = new THREE.PointLight(0x107C10, 1.4, 30); rim.position.set(-6, 4, -6); scene.add(rim);
+  const mount = new THREE.Group(); scene.add(mount);
+  const board = new THREE.Group(); mount.add(board);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(10, .35, 10), new THREE.MeshStandardMaterial({ color:0x151815, roughness:.85, metalness:.1 }));
+  base.position.y=-.175; base.receiveShadow=true; board.add(base);
+  const grid = new THREE.GridHelper(10, 10, 0x52c552, 0x1f3a1f); grid.position.y=.003; board.add(grid);
+  const wallMat = new THREE.MeshStandardMaterial({ color:0x107C10, roughness:.5, emissive:0x0b3d0b, emissiveIntensity:.6 });
+  [[0,5.1,10.4,.2],[0,-5.1,10.4,.2],[5.1,0,.2,10.4],[-5.1,0,.2,10.4]].forEach(([x,z,w,d])=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w,.5,d), wallMat); m.position.set(x,.25,z); m.castShadow=m.receiveShadow=true; board.add(m); });
+  const tc=document.createElement('canvas'); tc.width=128; tc.height=64; const x=tc.getContext('2d');
+  for (let i=0;i<8;i++) for (let j=0;j<4;j++) { x.fillStyle=(i+j)%2?'#52c552':'#e9ede9'; x.fillRect(i*16, j*16, 16, 16); }
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(.5, 32, 24), new THREE.MeshStandardMaterial({ map:new THREE.CanvasTexture(tc), roughness:.35, metalness:.2 }));
+  ball.castShadow=true; ball.position.y=.5; board.add(ball);
+  const resize = () => { const r=stage.getBoundingClientRect(); if (!r.width) return; renderer.setSize(r.width, r.height, false); camera.aspect=r.width/r.height; camera.updateProjectionMatrix(); };
+  new ResizeObserver(resize).observe(stage); resize();
+  return { renderer, scene, camera, mount, board, ball };
+}
+function bindPause(btn, el){ btn.onclick = () => { const p = el.dataset.paused!=='1'; el.dataset.paused = p ? '1' : ''; btn.textContent = p ? 'Resume view' : 'Pause view'; }; }
+
+/* ---------- IMU 3D tab (unlocks only for the mpu6050-ball firmware) ---------- */
+const IMU = (() => {
+  const D2R=Math.PI/180, R2D=180/Math.PI, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const els = { stage:$('#stage'), canvas:$('#imuCanvas'), lock:$('#imuLock'), lockMsg:$('#imuLockMsg'), who:$('#imuWho'),
+                hud:$('#imuHud'), read:$('#imuRead'), checks:$('#checks'), chkTag:$('#chkTag'), strip:$('#strip'), simBtn:$('#bImuSim') };
+  const css = getComputedStyle(document.documentElement), tok = n => css.getPropertyValue(n).trim();
+  const col = { green:tok('--green-hi'), info:tok('--info'), warn:tok('--warn'), line:tok('--line'), line2:tok('--dim'), dim:tok('--muted') };
+  const st = { fw:null, ver:null, id:null, last:null, lastAt:0, n:0, rate:[], filt:{pitch:0,roll:0}, level:{pitch:0,roll:0},
+               lastT:0, lastSeq:null, dropped:0, selftest:null, hist:[], helloAsked:0, sim:false, simTimer:0, simStream:true, mount:0 };
+  let three=null, threeFailed=false;
+  const locked = () => st.fw !== 'mpu6050-ball';
+
+  function renderLock(){
+    els.lock.hidden = !locked();
+    els.lockMsg.textContent = st.fw && locked()
+      ? `This board is running "${st.fw}". Flash mpu6050_ball.ino to use this view.`
+      : 'This view only runs for a board that identifies as mpu6050-ball over USB. Any other firmware keeps it locked.';
+    els.who.textContent = !locked() ? `mpu6050-ball ${st.ver||''} · ${st.id||'?'}${st.sim?' · simulated data':''}` : st.fw ? `Running ${st.fw} · locked` : 'Waiting for mpu6050-ball firmware';
+    els.simBtn.textContent = st.sim ? 'Stop simulation' : 'Simulate MPU-6050';
+  }
+  function hello(j){
+    const prev = st.fw; st.fw=j.fw||null; st.ver=j.ver||null; st.id=j.id||st.id; renderLock();
+    if (prev!==st.fw) locked() ? log('debug','imu',`Board runs "${st.fw}". The 3D view stays locked; it needs mpu6050-ball.`) : log('ok','imu',`Unlocked: mpu6050-ball ${st.ver||''} on ${st.id}`);
+  }
+  function selftest(j){ if (j.fw) hello({ fw:j.fw, ver:st.ver, id:j.id }); st.selftest = j.fw==='mpu6050-ball' ? j : null; }
+  function sample(j){
+    if (locked()) {
+      const now=performance.now();
+      if (now-st.helloAsked > 3000) { st.helloAsked=now; log('debug','imu','IMU data from unidentified firmware; asking the board to identify'); serialSend({cmd:'hello'}).catch(()=>{}); }
+      return;
+    }
+    const now=performance.now()/1000, dt = st.lastT ? Math.min(.1, now-st.lastT) : .02; st.lastT=now; st.lastAt=performance.now();
+    if (j.s!=null) { if (st.lastSeq!=null && j.s > st.lastSeq+1) st.dropped += j.s-st.lastSeq-1; st.lastSeq=j.s; }
+    st.n++; st.rate.push(now);
+    const accRoll = Math.atan2(j.ay, j.az)*R2D, accPitch = Math.atan2(-j.ax, Math.hypot(j.ay, j.az))*R2D, k=.96;
+    if (st.n===1) { st.filt.roll=accRoll; st.filt.pitch=accPitch; }
+    else { st.filt.roll = k*(st.filt.roll + j.gx*dt) + (1-k)*accRoll; st.filt.pitch = k*(st.filt.pitch + j.gy*dt) + (1-k)*accPitch; }
+    st.last=j; st.hist.push([j.ax, j.ay, j.az]); if (st.hist.length>250) st.hist.shift();
+  }
+  function reset(){
+    Object.assign(st, { fw:null, ver:null, last:null, n:0, rate:[], lastT:0, lastSeq:null, dropped:0, selftest:null, hist:[], filt:{pitch:0,roll:0} });
+    if (three) { three.pos.set(0,0); three.vel.set(0,0); }
+    renderLock();
+  }
+
+  /* three.js scene */
+  function initThree(){
+    if (three || threeFailed) return;
+    try {
+      const a = buildArena(els.canvas, els.stage), o = new THREE.Vector3(-4.5, .06, 4.5);
+      a.board.add(new THREE.ArrowHelper(new THREE.Vector3(1,0,0), o, 1.7, 0x72b7ff, .35, .25));   // sensor +X
+      a.board.add(new THREE.ArrowHelper(new THREE.Vector3(0,0,-1), o, 1.7, 0xf0b43a, .35, .25));  // sensor +Y
+      three = Object.assign(a, { pos:new THREE.Vector2(), vel:new THREE.Vector2(), cur:{p:0,r:0}, q:new THREE.Quaternion(), g:new THREE.Vector3(), axis:new THREE.Vector3(), dq:new THREE.Quaternion() });
+      log('debug','imu','3D scene ready', `three.js r${THREE.REVISION}`);
+    } catch(e){
+      threeFailed=true;
+      els.hud.textContent = typeof THREE==='undefined' ? '3D library failed to load (offline?). Readouts and checks still work.' : 'WebGL is unavailable here. Readouts and checks still work.';
+      log('error','imu','3D view unavailable; readouts and checks still work', e.message);
+    }
+  }
+  function stepThree(dt){
+    const t=three, idle = locked() || !st.last;
+    const tp = idle ? 0 : clamp(st.filt.pitch-st.level.pitch, -35, 35), tr = idle ? 0 : clamp(st.filt.roll-st.level.roll, -35, 35);
+    t.cur.p += (tp-t.cur.p)*Math.min(1, dt*12); t.cur.r += (tr-t.cur.r)*Math.min(1, dt*12);
+    t.mount.rotation.y = st.mount*Math.PI/2;
+    t.board.rotation.set(t.cur.r*D2R, 0, -t.cur.p*D2R);   // sensor X → scene +X, sensor Y → scene −Z
+    if (!idle) {
+      t.board.updateMatrixWorld(true); t.board.getWorldQuaternion(t.q).invert();
+      t.g.set(0,-1,0).applyQuaternion(t.q);                // gravity in the plane's own frame
+      const G = 30*5/7;                                    // solid ball rolling: a = 5/7 · g · sinθ
+      t.vel.x += t.g.x*G*dt; t.vel.y += t.g.z*G*dt; t.vel.multiplyScalar(Math.max(0, 1-.6*dt));
+      t.pos.x += t.vel.x*dt; t.pos.y += t.vel.y*dt;
+      const lim=4.4;
+      if (t.pos.x> lim){t.pos.x= lim; t.vel.x*=-.45;} if (t.pos.x<-lim){t.pos.x=-lim; t.vel.x*=-.45;}
+      if (t.pos.y> lim){t.pos.y= lim; t.vel.y*=-.45;} if (t.pos.y<-lim){t.pos.y=-lim; t.vel.y*=-.45;}
+      const sp=t.vel.length(); if (sp>1e-4) { t.axis.set(t.vel.y, 0, -t.vel.x).normalize(); t.dq.setFromAxisAngle(t.axis, sp*dt/.5); t.ball.quaternion.premultiply(t.dq); }
+    }
+    t.ball.position.set(t.pos.x, .5, t.pos.y);
+    t.renderer.render(t.scene, t.camera);
+  }
+
+  /* panels */
+  function renderHud(){
+    if (threeFailed) return;
+    const stale = st.last && performance.now()-st.lastAt > 2000;
+    els.hud.textContent = locked() ? 'locked' : !st.last ? 'waiting for samples' : stale ? 'stream stopped · no samples for 2 s'
+      : `pitch ${(st.filt.pitch-st.level.pitch).toFixed(1)}° · roll ${(st.filt.roll-st.level.roll).toFixed(1)}°`;
+  }
+  function renderReadouts(){
+    const now=performance.now()/1000; while (st.rate.length && now-st.rate[0] > 1) st.rate.shift();
+    const L=st.last, sgn=(v,d)=>(v>=0?'+':'')+v.toFixed(d);
+    const cells = [['ax','g',L?.ax,3,1],['ay','g',L?.ay,3,1],['az','g',L?.az,3,1],['gx','°/s',L?.gx,1,1],['gy','°/s',L?.gy,1,1],['gz','°/s',L?.gz,1,1],
+      ['pitch','°',L?st.filt.pitch-st.level.pitch:null,1,1],['roll','°',L?st.filt.roll-st.level.roll:null,1,1],['|a|','g',L?Math.hypot(L.ax,L.ay,L.az):null,3,0],
+      ['temp','°C',L?.tc,1,0],['rate','Hz',L?st.rate.length:null,0,0],['dropped','',L?st.dropped:null,0,0]];
+    els.read.innerHTML = cells.map(([k,u,v,d,s])=>`<div class="ro"><span>${k}${u?' · '+u:''}</span><b>${v==null||isNaN(v)?'—':s?sgn(v,d):v.toFixed(d)}</b></div>`).join('');
+  }
+  function drawStrip(){
+    const cv=els.strip, dpr=Math.min(2, devicePixelRatio||1), w=cv.clientWidth, h=cv.clientHeight; if (!w) return;
+    if (cv.width!==Math.round(w*dpr) || cv.height!==Math.round(h*dpr)) { cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); }
+    const c=cv.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,w,h);
+    const padL=36, y=v=>h/2 - clamp(v,-2,2)*(h/2-8)/2, N=250, H=st.hist, xs=i=>padL+(w-padL-6)*(i+N-H.length)/(N-1);
+    c.font='10px "JetBrains Mono", ui-monospace, monospace'; c.textBaseline='middle'; c.lineWidth=1;
+    [[2,'+2 g'],[1,'+1 g'],[0,'0'],[-1,'−1 g'],[-2,'−2 g']].forEach(([v,l])=>{ c.strokeStyle=v===0?col.line2:col.line; c.beginPath(); c.moveTo(padL,y(v)); c.lineTo(w,y(v)); c.stroke(); c.fillStyle=col.dim; c.fillText(l, 0, y(v)); });
+    [[0,col.green],[1,col.info],[2,col.warn]].forEach(([k,color])=>{
+      if (!H.length) return; c.strokeStyle=color; c.lineWidth=1.6; c.beginPath();
+      H.forEach((s,i)=>{ const X=xs(i), Y=y(s[k]); i ? c.lineTo(X,Y) : c.moveTo(X,Y); }); c.stroke();
+      const s=H[H.length-1]; c.fillStyle=color; c.beginPath(); c.arc(xs(H.length-1), y(s[k]), 2.6, 0, Math.PI*2); c.fill();
+    });
+    if (!H.length) { c.fillStyle=col.dim; c.textAlign='center'; c.fillText(locked()?'Locked until mpu6050-ball identifies':'No samples yet', (w+padL)/2, h/2-14); c.textAlign='left'; }
+  }
+  function renderChecks(){
+    const s=st.selftest, L=st.last, items=[], add=(state,title,detail)=>items.push({state,title,detail});
+    add(st.fw==='mpu6050-ball'?'pass':st.fw?'fail':'wait', 'Firmware is mpu6050-ball', st.fw ? `${st.fw} ${st.ver||''}`.trim() : 'Waiting for the board to identify itself');
+    if (S.info && st.id) add(st.id===macToId(S.info.mac)?'pass':'fail', 'Device ID matches eFuse MAC', `${st.id} vs ${macToId(S.info.mac)} from USB`);
+    else add('wait', 'Device ID matches eFuse MAC', S.info ? 'Waiting for the board to identify itself' : 'Connect over USB in Setup to compare');
+    if (!s) add('wait', 'Board self-test', 'Click Run self-test, or press EN on the board');
+    else {
+      const classic = /^ESP32/.test(s.chip) && !/-(S2|S3|C\d|H\d|P4)/.test(s.chip);
+      add(classic?'pass':'fail', 'Chip is a classic ESP32', `${s.chip} v${fmtRev(s.rev)}, ${s.cores} cores${S.info?` · USB reported ${S.info.chip.split(' (')[0]}`:''}`);
+      add(s.flash>=4194304?'pass':'warn', 'Flash ≥ 4 MB', fmtMB(s.flash));
+      add(s.psram>0?'pass':'warn', 'PSRAM present (WROVER module)', s.psram>0 ? `${fmtMB(s.psram)} usable` : 'Not enabled. Arduino IDE: Tools → PSRAM → Enabled, then rebuild');
+      add(s.i2c?.length?'pass':'fail', `I²C bus on SDA ${s.sda} / SCL ${s.scl}`, s.i2c?.length ? `Devices answering: ${s.i2c.join(', ')}` : 'Nothing answered. Check VCC, GND and the SDA/SCL wires');
+      add(s.mpu?'pass':'fail', 'MPU-6050 address', s.mpu ? `${s.mpu}${s.mpu==='0x69'?' (AD0 pulled high)':''}` : 'Nothing at 0x68 or 0x69');
+      const w=s.whoami, clone=['0x70','0x71','0x72','0x73'].includes(w);
+      add(w==='0x68'?'pass':clone?'warn':'fail', 'WHO_AM_I register', w==='0x68' ? '0x68, genuine MPU-6050' : clone ? `${w}: compatible clone (MPU-6500/9250 family). Accel and gyro still work` : `${w||'no reply'}: not an MPU-6050`);
+    }
+    if (L && !locked()) {
+      const mag=Math.hypot(L.ax,L.ay,L.az), gyr=Math.hypot(L.gx,L.gy,L.gz), rate=st.rate.length;
+      add(mag>.9&&mag<1.1?'pass':'warn', 'Gravity reads ≈ 1 g', `${mag.toFixed(3)} g${mag<=.9||mag>=1.1?' (board moving, or the sensor needs a look)':''}`);
+      add(gyr<5?'pass':'warn', 'Gyro steady when still', `${gyr.toFixed(2)} °/s${gyr>=5?' (board moving, or large bias)':''}`);
+      add(rate>=40?'pass':rate>=20?'warn':'fail', 'Stream rate ≈ 50 Hz', `${rate} Hz · ${st.dropped} dropped`);
+    } else add('wait', 'Live sensor data', locked() ? 'Starts once mpu6050-ball identifies' : 'No IMU samples yet');
+    const TAG={pass:['g','pass'],warn:['w','check'],fail:['f','fail'],wait:['','wait']};
+    els.checks.innerHTML = items.map(i=>`<li><span class="tag ${TAG[i.state][0]}">${TAG[i.state][1]}</span><div>${esc(i.title)}<em>${esc(i.detail)}</em></div></li>`).join('');
+    const has=k=>items.some(i=>i.state===k);
+    const [c,t] = has('fail')?['f','problem found']:has('wait')?['','pending']:has('warn')?['w','warnings']:['g','all pass'];
+    els.chkTag.className='tag '+c; els.chkTag.textContent=t;
+  }
+
+  /* simulation */
+  function simHello(){ const id = S.info ? macToId(S.info.mac) : 'wrover-5e1f00'; monWrite(`{"id":"${id}","fw":"mpu6050-ball","ver":"1.0.0","caps":["imu"]}\n`); return id; }
+  function simSelftest(id){ monWrite(`{"t":"selftest","id":"${id}","fw":"mpu6050-ball","chip":"ESP32-D0WD-V3","rev":301,"cores":2,"flash":4194304,"psram":4192123,"sdk":"v5.1.4","sda":21,"scl":22,"i2c":["0x68"],"mpu":"0x68","whoami":"0x68","g":1.001,"pass":true}\n`); }
+  function startSim(){
+    if (st.sim) return; JOY.stopSim(); st.sim=true; st.simStream=true;
+    log('info','imu','Simulated MPU-6050 started. No hardware is involved.');
+    const id=simHello(); simSelftest(id);
+    let seq=0; const t0=performance.now(), n=a=>(Math.random()-.5)*a;
+    st.simTimer = setInterval(()=>{
+      if (!st.simStream) return;
+      const t=(performance.now()-t0)/1000, p=14*Math.sin(t*.55)*D2R, r=10*Math.sin(t*.41+1)*D2R;
+      const dp=14*.55*Math.cos(t*.55), dr=10*.41*Math.cos(t*.41+1);
+      monWrite(`{"t":"imu","s":${seq++},"ax":${(-Math.sin(p)+n(.012)).toFixed(3)},"ay":${(Math.sin(r)*Math.cos(p)+n(.012)).toFixed(3)},"az":${(Math.cos(r)*Math.cos(p)+n(.012)).toFixed(3)},"gx":${(dr+n(.4)).toFixed(2)},"gy":${(dp+n(.4)).toFixed(2)},"gz":${n(.4).toFixed(2)},"tc":${(27.2+Math.sin(t/20)*.3).toFixed(1)}}\n`);
+    }, 20);
+    renderLock();
+  }
+  function stopSim(){ if (!st.sim) return; clearInterval(st.simTimer); st.sim=false; log('info','imu','Simulated MPU-6050 stopped'); renderLock(); }
+  function simCmd(line){
+    if (!st.sim) return false;
+    let j; try { j=JSON.parse(line); } catch { monWrite('{"t":"err","msg":"unknown command"}\n'); return true; }
+    setTimeout(()=>{
+      if (j.cmd==='hello') simHello();
+      else if (j.cmd==='selftest') simSelftest(S.info ? macToId(S.info.mac) : 'wrover-5e1f00');
+      else if (j.cmd==='stream') { st.simStream = j.on!==false; monWrite(`{"ok":true,"stream":${st.simStream}}\n`); }
+      else monWrite('{"t":"err","msg":"unknown command"}\n');
+    }, 120);
+    return true;
+  }
+  function onShow(){
+    initThree();
+    if (!st.sim && !st.last && !S.port && $('#simMode').checked) { log('info','imu','Simulate board is on, so this tab shows simulated sensor data.'); startSim(); }
+  }
+
+  /* controls */
+  $('#bImuListen').onclick = async () => {
+    if (!S.port) { if (S.sim || $('#simMode').checked) return startSim(); log('warn','imu','Connect the board in Setup (step 1) first.'); return; }
+    try { await openMonitor(); await serialSend({cmd:'hello'}); await serialSend({cmd:'selftest'}); } catch(e){ log('error','imu', e.message); }
+  };
+  $('#bImuTest').onclick = () => serialSend({cmd:'selftest'}).then(()=>log('info','imu','Self-test requested')).catch(e=>log('warn','imu', e.message));
+  $('#bImuLevel').onclick = () => { if (!st.last) return log('warn','imu','No samples yet, nothing to level.'); st.level={...st.filt}; log('ok','imu',`Level set at pitch ${st.filt.pitch.toFixed(1)}°, roll ${st.filt.roll.toFixed(1)}°`); };
+  $('#bImuBall').onclick = () => { if (three) { three.pos.set(0,0); three.vel.set(0,0); } };
+  $('#bImuSim').onclick = () => st.sim ? stopSim() : startSim();
+  $('#imuMount').onchange = e => { st.mount=+e.target.value; LS.set('lab.mount', st.mount); };
+  st.mount = +LS.get('lab.mount', 0) || 0; $('#imuMount').value = String(st.mount);
+  bindPause($('#bImuPause'), imuMonEl);
+  $('#imuCmdForm').onsubmit = ev => { ev.preventDefault(); const v=$('#imuCmd').value.trim(); if (!v) return;
+    const line = v.startsWith('{') ? v : JSON.stringify({cmd:v});
+    serialSendLine(line).then(()=>log('info','imu','Sent '+line)).catch(e=>log('warn','imu', e.message)); };
+  $('#bGoFlash').onclick = () => { showTab('setup'); document.querySelector('.step[data-k="flash"]').scrollIntoView({ behavior:'smooth', block:'center' }); };
+  $('#bCopyIno').onclick = () => copy($('#inoCode').textContent, 'mpu6050_ball.ino');
+
+  /* loop: only works while the tab is visible */
+  let prevT=performance.now(), lastUi=0, lastChk=0;
+  function frame(now){
+    requestAnimationFrame(frame);
+    const dt=Math.min(.05, (now-prevT)/1000); prevT=now;
+    if ($('#v-imu').hidden) return;
+    if (three) stepThree(dt);
+    if (now-lastUi > 100) { lastUi=now; renderHud(); renderReadouts(); drawStrip(); }
+    if (now-lastChk > 500) { lastChk=now; renderChecks(); }
+  }
+  requestAnimationFrame(frame); renderLock(); renderReadouts(); renderChecks();
+  return { sample, hello, selftest, reset, startSim, stopSim, simCmd, onShow, simActive:()=>st.sim };
+})();
+
+/* ---------- Joystick 3D tab (unlocks only for the joystick-ball firmware) ---------- */
+const JOY = (() => {
+  const D2R=Math.PI/180, clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), FW='joystick-ball', DZ=.08;
+  const els = { stage:$('#joyStage'), canvas:$('#joyCanvas'), lock:$('#joyLock'), lockMsg:$('#joyLockMsg'), who:$('#joyWho'), hud:$('#joyHud'),
+                read:$('#joyRead'), checks:$('#joyChecks'), chkTag:$('#joyChkTag'), strip:$('#joyStrip'), simBtn:$('#bJoySim'),
+                dot:$('#joyDot'), box:$('#joyBox'), led:$('#joyLed') };
+  const css = getComputedStyle(document.documentElement), tok = n => css.getPropertyValue(n).trim();
+  const col = { green:tok('--green-hi'), info:tok('--info'), warn:tok('--warn'), line:tok('--line'), line2:tok('--dim'), dim:tok('--muted') };
+  const opt = Object.assign({ swap:false, invX:false, invY:false }, LS.get('lab.joyopt', {}));
+  const st = { fw:null, ver:null, id:null, last:null, lastAt:0, rate:[], lastSeq:null, dropped:0, selftest:null, center:null, centerManual:false,
+               range:null, presses:0, sw:false, hist:[], n:{x:0,y:0,rx:0,ry:0}, helloAsked:0, hopReq:false, sim:false, simTimer:0, simStream:true };
+  let arena=null, arenaFailed=false;
+  const locked = () => st.fw !== FW;
+
+  function renderLock(){
+    els.lock.hidden = !locked();
+    els.lockMsg.textContent = st.fw && locked()
+      ? `This board is running "${st.fw}". Flash joystick_ball.ino to use this view.`
+      : 'This view only runs for a board that identifies as joystick-ball over USB. Any other firmware keeps it locked.';
+    els.who.textContent = !locked() ? `joystick-ball ${st.ver||''} · ${st.id||'?'}${st.sim?' · simulated data':''}` : st.fw ? `Running ${st.fw} · locked` : 'Waiting for joystick-ball firmware';
+    els.simBtn.textContent = st.sim ? 'Stop simulation' : 'Simulate joystick';
+  }
+  function hello(j){
+    const prev = st.fw; st.fw=j.fw||null; st.ver=j.ver||st.ver; st.id=j.id||st.id; renderLock();
+    if (prev!==st.fw) locked() ? log('debug','joy',`Board runs "${st.fw}"; the joystick view stays locked.`) : log('ok','joy',`Unlocked: joystick-ball ${st.ver||''} on ${st.id}`);
+  }
+  function selftest(j){
+    if (j.fw) hello({ fw:j.fw, ver:st.ver, id:j.id });
+    if (j.fw!==FW) { st.selftest=null; return; }
+    st.selftest=j;
+    if (!st.centerManual && !j.x?.float && !j.y?.float) st.center={ x:j.cx, y:j.cy };
+  }
+
+  /* raw ADC → stick vector: per-side scaling around the measured center, then a radial dead zone */
+  function mapStick(x, y){
+    const c = st.center || { x:2048, y:2048 };
+    const nrm = (r,cc) => clamp(r>=cc ? (r-cc)/Math.max(1,4095-cc) : (r-cc)/Math.max(1,cc), -1, 1);
+    let a=nrm(x,c.x), b=nrm(y,c.y);
+    if (opt.swap) [a,b]=[b,a];
+    if (opt.invX) a=-a;
+    if (opt.invY) b=-b;
+    const m=Math.hypot(a,b);
+    if (m<DZ) return { x:0, y:0, rx:a, ry:b };
+    const k=Math.min(1,(m-DZ)/(1-DZ))/m;
+    return { x:a*k, y:b*k, rx:a, ry:b };
+  }
+  function sample(j){
+    if (locked()) {
+      const now=performance.now();
+      if (now-st.helloAsked > 3000) { st.helloAsked=now; log('debug','joy','Joystick data from unidentified firmware; asking the board to identify'); serialSend({cmd:'hello'}).catch(()=>{}); }
+      return;
+    }
+    const now=performance.now()/1000; st.lastAt=performance.now();
+    if (j.s!=null) { if (st.lastSeq!=null && j.s > st.lastSeq+1) st.dropped += j.s-st.lastSeq-1; st.lastSeq=j.s; }
+    st.rate.push(now);
+    if (!st.center) st.center = { x:j.x, y:j.y };           // until a self-test reports the rest position
+    const r = st.range || (st.range = { minX:j.x, maxX:j.x, minY:j.y, maxY:j.y });
+    r.minX=Math.min(r.minX,j.x); r.maxX=Math.max(r.maxX,j.x); r.minY=Math.min(r.minY,j.y); r.maxY=Math.max(r.maxY,j.y);
+    const sw = !!j.sw;
+    if (sw && !st.sw) { st.presses++; st.hopReq=true; log(st.presses===1?'ok':'debug','joy', st.presses===1 ? 'Button press detected (SW → GPIO 13 works)' : `SW pressed (${st.presses})`); }
+    st.sw=sw; st.last=j; st.n=mapStick(j.x, j.y);
+    st.hist.push([st.n.x, st.n.y, sw?1:0]); if (st.hist.length>250) st.hist.shift();
+    els.led.classList.toggle('on', sw); els.led.lastChild.textContent = sw ? 'SW pressed' : 'SW released';
+  }
+  function reset(){
+    Object.assign(st, { fw:null, ver:null, last:null, rate:[], lastSeq:null, dropped:0, selftest:null, center:null, centerManual:false,
+                        range:null, presses:0, sw:false, hist:[], n:{x:0,y:0,rx:0,ry:0} });
+    if (arena) { arena.pos.set(0,0); arena.vel.set(0,0); arena.h=0; arena.vy=0; }
+    els.led.classList.remove('on'); els.led.lastChild.textContent='SW released';
+    renderLock();
+  }
+
+  /* 3D: the stick pushes the ball and tips the plane for feel; a click makes it hop */
+  function initArena(){
+    if (arena || arenaFailed) return;
+    try {
+      const a = buildArena(els.canvas, els.stage);
+      a.ball.material.emissive.setHex(0x52c552); a.ball.material.emissiveIntensity=0;
+      arena = Object.assign(a, { pos:new THREE.Vector2(), vel:new THREE.Vector2(), tilt:{x:0,y:0}, h:0, vy:0, axis:new THREE.Vector3(), dq:new THREE.Quaternion() });
+      log('debug','joy','3D scene ready', `three.js r${THREE.REVISION}`);
+    } catch(e){
+      arenaFailed=true;
+      els.hud.textContent = typeof THREE==='undefined' ? '3D library failed to load (offline?). Readouts and checks still work.' : 'WebGL is unavailable here. Readouts and checks still work.';
+      log('error','joy','3D view unavailable; readouts and checks still work', e.message);
+    }
+  }
+  function stepArena(dt){
+    const t=arena, idle=locked() || !st.last || performance.now()-st.lastAt > 2000, n = idle ? {x:0,y:0} : st.n, A=16;
+    t.tilt.x += (n.x*9 - t.tilt.x)*Math.min(1,dt*10); t.tilt.y += (n.y*9 - t.tilt.y)*Math.min(1,dt*10);
+    t.board.rotation.set(-t.tilt.y*D2R, 0, -t.tilt.x*D2R);   // right edge dips for +x, far edge dips for +y
+    t.vel.x += n.x*A*dt; t.vel.y -= n.y*A*dt; t.vel.multiplyScalar(Math.max(0, 1-2*dt));
+    t.pos.x += t.vel.x*dt; t.pos.y += t.vel.y*dt;
+    const lim=4.4;
+    if (t.pos.x> lim){t.pos.x= lim; t.vel.x*=-.45;} if (t.pos.x<-lim){t.pos.x=-lim; t.vel.x*=-.45;}
+    if (t.pos.y> lim){t.pos.y= lim; t.vel.y*=-.45;} if (t.pos.y<-lim){t.pos.y=-lim; t.vel.y*=-.45;}
+    if (st.hopReq) { st.hopReq=false; if (!idle && t.h<.05) t.vy=7.5; }
+    if (t.h>0 || t.vy>0) { t.vy -= 30*dt; t.h += t.vy*dt; if (t.h<=0) { t.h=0; t.vy = t.vy < -4 ? -t.vy*.35 : 0; } }
+    const sp=t.vel.length();
+    if (sp>1e-4) { t.axis.set(t.vel.y, 0, -t.vel.x).normalize(); t.dq.setFromAxisAngle(t.axis, sp*dt/.5); t.ball.quaternion.premultiply(t.dq); }
+    t.ball.position.set(t.pos.x, .5+t.h, t.pos.y);
+    const m=t.ball.material; m.emissiveIntensity += ((st.sw && !idle ? .9 : 0) - m.emissiveIntensity)*Math.min(1, dt*14);
+    t.renderer.render(t.scene, t.camera);
+  }
+
+  /* panels */
+  function renderHud(){
+    if (arenaFailed) return;
+    const stale = st.last && performance.now()-st.lastAt > 2000;
+    els.hud.textContent = locked() ? 'locked' : !st.last ? 'waiting for samples' : stale ? 'stream stopped · no samples for 2 s'
+      : `x ${st.n.x>=0?'+':''}${st.n.x.toFixed(2)} · y ${st.n.y>=0?'+':''}${st.n.y.toFixed(2)} · SW ${st.sw?'pressed':'released'}`;
+  }
+  function renderPad(){
+    const R=50, C=60, live = st.last && !locked(), p = live ? st.n : { rx:0, ry:0 };
+    els.dot.setAttribute('cx', (C+clamp(p.rx,-1,1)*R).toFixed(1)); els.dot.setAttribute('cy', (C-clamp(p.ry,-1,1)*R).toFixed(1));
+    const r=st.range;
+    if (!live || !r) { els.box.setAttribute('width',0); els.box.setAttribute('height',0); return; }
+    const pts=[[r.minX,r.minY],[r.minX,r.maxY],[r.maxX,r.minY],[r.maxX,r.maxY]].map(([x,y])=>mapStick(x,y));
+    const xs=pts.map(q=>q.rx), ys=pts.map(q=>q.ry), x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+    els.box.setAttribute('x',(C+x0*R).toFixed(1)); els.box.setAttribute('y',(C-y1*R).toFixed(1));
+    els.box.setAttribute('width',((x1-x0)*R).toFixed(1)); els.box.setAttribute('height',((y1-y0)*R).toFixed(1));
+  }
+  function renderReadouts(){
+    const now=performance.now()/1000; while (st.rate.length && now-st.rate[0] > 1) st.rate.shift();
+    const L = locked() ? null : st.last, sg=v=>(v>=0?'+':'')+v.toFixed(2);
+    const cells = [['x raw', L?.x], ['y raw', L?.y], ['SW', L ? (st.sw?'pressed':'released') : null],
+      ['x', L ? sg(st.n.x) : null], ['y', L ? sg(st.n.y) : null], ['presses', L ? st.presses : null],
+      ['center x', L ? st.center?.x : null], ['center y', L ? st.center?.y : null], ['rate · Hz', L ? st.rate.length : null]];
+    els.read.innerHTML = cells.map(([k,v])=>`<div class="ro"><span>${k}</span><b>${v==null?'—':esc(v)}</b></div>`).join('');
+  }
+  function drawStrip(){
+    const cv=els.strip, dpr=Math.min(2, devicePixelRatio||1), w=cv.clientWidth, h=cv.clientHeight; if (!w) return;
+    if (cv.width!==Math.round(w*dpr) || cv.height!==Math.round(h*dpr)) { cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); }
+    const c=cv.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,w,h);
+    const padL=30, N=250, H=locked()?[]:st.hist, y=v=>h/2 - clamp(v,-1,1)*(h/2-10), xs=i=>padL+(w-padL-6)*(i+N-H.length)/(N-1), step=(w-padL-6)/(N-1);
+    c.font='10px "JetBrains Mono", ui-monospace, monospace'; c.textBaseline='middle'; c.lineWidth=1;
+    c.fillStyle=col.warn; c.globalAlpha=.22;
+    H.forEach((s,i)=>{ if (s[2]) c.fillRect(xs(i)-step/2, 4, step+.5, h-8); });
+    c.globalAlpha=1;
+    [[1,'+1'],[.5,''],[0,'0'],[-.5,''],[-1,'−1']].forEach(([v,l])=>{ c.strokeStyle=v===0?col.line2:col.line; c.beginPath(); c.moveTo(padL,y(v)); c.lineTo(w,y(v)); c.stroke(); if (l) { c.fillStyle=col.dim; c.fillText(l, 4, y(v)); } });
+    [[0,col.green],[1,col.info]].forEach(([k,color])=>{
+      if (!H.length) return; c.strokeStyle=color; c.lineWidth=1.6; c.beginPath();
+      H.forEach((s,i)=>{ const X=xs(i), Y=y(s[k]); i ? c.lineTo(X,Y) : c.moveTo(X,Y); }); c.stroke();
+      const s=H[H.length-1]; c.fillStyle=color; c.beginPath(); c.arc(xs(H.length-1), y(s[k]), 2.6, 0, Math.PI*2); c.fill();
+    });
+    if (!H.length) { c.fillStyle=col.dim; c.textAlign='center'; c.fillText(locked()?'Locked until joystick-ball identifies':'No samples yet', (w+padL)/2, h/2-14); c.textAlign='left'; }
+  }
+  function renderChecks(){
+    const s=st.selftest, L=locked()?null:st.last, items=[], add=(state,title,detail)=>items.push({state,title,detail});
+    add(st.fw===FW?'pass':st.fw?'fail':'wait', 'Firmware is joystick-ball', st.fw ? `${st.fw} ${st.ver||''}`.trim() : 'Waiting for the board to identify itself');
+    if (S.info && st.id && !locked()) add(st.id===macToId(S.info.mac)?'pass':'fail', 'Device ID matches eFuse MAC', `${st.id} vs ${macToId(S.info.mac)} from USB`);
+    else add('wait', 'Device ID matches eFuse MAC', S.info ? 'Waiting for the board to identify itself' : 'Connect over USB in Setup to compare');
+    if (!s) add('wait', 'Board self-test', 'Click Run self-test with hands off the stick, or press EN on the board');
+    else {
+      const classic = /^ESP32/.test(s.chip) && !/-(S2|S3|C\d|H\d|P4)/.test(s.chip);
+      add(classic?'pass':'fail', 'Chip is a classic ESP32', `${s.chip} v${fmtRev(s.rev)}, ${s.cores} cores`);
+      [['x','VRx',s.vrx],['y','VRy',s.vry]].forEach(([k,name,gpio])=>{
+        const p=s[k]; if (!p) return add('wait', `${name} wiper on GPIO ${gpio}`, 'No data in the self-test');
+        add(p.float?'fail':'pass', `${name} wire to GPIO ${gpio}`, p.float
+          ? `Reads like an unconnected pin (the pull test moved it ${p.up-p.down} counts). Check the ${name} jumper.`
+          : `rest ${p.rest} · pull test moved it ${p.up-p.down} counts · noise ±${p.noise}`);
+      });
+      const ok = [['x',s.cx],['y',s.cy]].filter(([k])=>!s[k]?.float).map(([,v])=>v);
+      if (ok.length) {
+        const mid=v=>v>=1400&&v<=2700, high=v=>v>2700, c=ok.join(' / ');
+        add(ok.every(mid)?'pass':ok.some(high)?'fail':'warn', 'Stick rests near mid-scale',
+          ok.every(mid) ? `center ${c} of 4095`
+          : ok.some(high) ? `center ${c} is too high. The module's +5V pin is probably on 5V; move it to 3V3.`
+          : `center ${c} is unusually low. Was the stick pushed during the test?`);
+      }
+      add(s.sw_idle===1?'pass':'fail', `SW on GPIO ${s.swpin} reads HIGH when released`, s.sw_idle===1 ? 'Internal pull-up working' : 'Reads LOW. The button is stuck, SW is wired to GND, or it was held during the test.');
+    }
+    if (L) {
+      const r=st.range, sx=r.maxX-r.minX, sy=r.maxY-r.minY, rate=st.rate.length;
+      add(sx>=3000?'pass':'wait', 'Full travel on VRx', sx>=3000 ? `${r.minX}–${r.maxX}` : `Push the stick all the way left and right (${sx} of 3000 counts so far)`);
+      add(sy>=3000?'pass':'wait', 'Full travel on VRy', sy>=3000 ? `${r.minY}–${r.maxY}` : `Push the stick all the way up and down (${sy} of 3000 counts so far)`);
+      add(st.presses?'pass':'wait', 'Button press detected', st.presses ? `${st.presses} press${st.presses>1?'es':''}` : 'Press down on the stick until it clicks');
+      add(rate>=40?'pass':rate>=20?'warn':'fail', 'Stream rate ≈ 50 Hz', `${rate} Hz · ${st.dropped} dropped`);
+    } else add('wait', 'Live joystick data', locked() ? 'Starts once joystick-ball identifies' : 'No joystick samples yet');
+    const TAG={pass:['g','pass'],warn:['w','check'],fail:['f','fail'],wait:['','wait']};
+    els.checks.innerHTML = items.map(i=>`<li><span class="tag ${TAG[i.state][0]}">${TAG[i.state][1]}</span><div>${esc(i.title)}<em>${esc(i.detail)}</em></div></li>`).join('');
+    const has=k=>items.some(i=>i.state===k);
+    const [c,t] = has('fail')?['f','problem found']:has('wait')?['','pending']:has('warn')?['w','warnings']:['g','all pass'];
+    els.chkTag.className='tag '+c; els.chkTag.textContent=t;
+  }
+
+  /* simulation */
+  const simId = () => S.info ? macToId(S.info.mac) : 'wrover-5e1f00';
+  function simHello(){ monWrite(`{"id":"${simId()}","fw":"joystick-ball","ver":"1.0.0","caps":["joystick","button"]}\n`); }
+  function simSelftest(){ monWrite(`{"t":"selftest","id":"${simId()}","fw":"joystick-ball","chip":"ESP32-D0WD-V3","rev":301,"cores":2,"flash":4194304,"psram":4192123,"sdk":"v5.1.4","vrx":32,"vry":33,"swpin":13,"x":{"rest":1938,"noise":3,"down":1921,"up":1957,"float":false},"y":{"rest":1952,"noise":2,"down":1936,"up":1969,"float":false},"sw_idle":1,"cx":1938,"cy":1952,"pass":true}\n`); }
+  function startSim(){
+    if (st.sim) return; IMU.stopSim(); st.sim=true; st.simStream=true;
+    log('info','joy','Simulated joystick started. No hardware is involved.');
+    simHello(); simSelftest();
+    let seq=0; const t0=performance.now(), cx=1938, cy=1952;
+    const raw = (v,c) => Math.round(clamp(v>=0 ? c+v*(4095-c) : c+v*c, 0, 4095) + (Math.random()-.5)*8);
+    st.simTimer = setInterval(()=>{
+      if (!st.simStream) return;
+      const t=(performance.now()-t0)/1000, sweep=t<4;            // one full circle first, so the travel checks can pass
+      const ax = sweep ? Math.cos(t*1.6) : .8*Math.sin(t*.9);
+      const ay = sweep ? Math.sin(t*1.6) : .8*Math.sin(t*1.3+1);
+      const sw = t>1.5 && (t%3.1) < .16 ? 1 : 0;
+      monWrite(`{"t":"joy","s":${seq++},"x":${clamp(raw(ax,cx),0,4095)},"y":${clamp(raw(ay,cy),0,4095)},"sw":${sw}}\n`);
+    }, 20);
+    renderLock();
+  }
+  function stopSim(){ if (!st.sim) return; clearInterval(st.simTimer); st.sim=false; log('info','joy','Simulated joystick stopped'); renderLock(); }
+  function simCmd(line){
+    if (!st.sim) return false;
+    let j; try { j=JSON.parse(line); } catch { monWrite('{"t":"err","msg":"unknown command"}\n'); return true; }
+    setTimeout(()=>{
+      if (j.cmd==='hello') simHello();
+      else if (j.cmd==='selftest') simSelftest();
+      else if (j.cmd==='stream') { st.simStream = j.on!==false; monWrite(`{"ok":true,"stream":${st.simStream}}\n`); }
+      else monWrite('{"t":"err","msg":"unknown command"}\n');
+    }, 120);
+    return true;
+  }
+  function onShow(){
+    initArena();
+    if (!st.sim && !st.last && !S.port && $('#simMode').checked) { log('info','joy','Simulate board is on, so this tab shows a simulated joystick.'); startSim(); }
+  }
+
+  /* controls */
+  $('#bJoyListen').onclick = async () => {
+    if (!S.port) { if (S.sim || $('#simMode').checked) return startSim(); log('warn','joy','Connect the board in Setup (step 1) first.'); return; }
+    try { await openMonitor(); await serialSend({cmd:'hello'}); await serialSend({cmd:'selftest'}); } catch(e){ log('error','joy', e.message); }
+  };
+  $('#bJoyTest').onclick = () => serialSend({cmd:'selftest'}).then(()=>log('info','joy','Self-test requested. Keep hands off the stick for a moment.')).catch(e=>log('warn','joy', e.message));
+  $('#bJoyCenter').onclick = () => {
+    if (!st.last || locked()) return log('warn','joy','No joystick samples yet, nothing to center.');
+    st.center={ x:st.last.x, y:st.last.y }; st.centerManual=true; log('ok','joy',`Center set to ${st.center.x} / ${st.center.y}`);
+  };
+  $('#bJoyBall').onclick = () => { if (arena) { arena.pos.set(0,0); arena.vel.set(0,0); arena.h=0; arena.vy=0; } };
+  $('#bJoySim').onclick = () => st.sim ? stopSim() : startSim();
+  [['joySwap','swap'],['joyInvX','invX'],['joyInvY','invY']].forEach(([id,k])=>{
+    const el=$('#'+id); el.checked=!!opt[k];
+    el.onchange=()=>{ opt[k]=el.checked; LS.set('lab.joyopt', opt); log('info','joy',`${el.parentNode.textContent.trim()} ${el.checked?'on':'off'}`); };
+  });
+  bindPause($('#bJoyPause'), $('#joyMon'));
+  $('#joyCmdForm').onsubmit = ev => { ev.preventDefault(); const v=$('#joyCmd').value.trim(); if (!v) return;
+    const line = v.startsWith('{') ? v : JSON.stringify({cmd:v});
+    serialSendLine(line).then(()=>log('info','joy','Sent '+line)).catch(e=>log('warn','joy', e.message)); };
+  $('#bJoyGoFlash').onclick = () => { showTab('setup'); document.querySelector('.step[data-k="flash"]').scrollIntoView({ behavior:'smooth', block:'center' }); };
+  $('#bCopyJoy').onclick = () => copy($('#joyCode').textContent, 'joystick_ball.ino');
+
+  /* loop: only works while the tab is visible */
+  let prevT=performance.now(), lastUi=0, lastChk=0;
+  function frame(now){
+    requestAnimationFrame(frame);
+    const dt=Math.min(.05, (now-prevT)/1000); prevT=now;
+    if ($('#v-joy').hidden) return;
+    if (arena) stepArena(dt);
+    renderPad();
+    if (now-lastUi > 100) { lastUi=now; renderHud(); renderReadouts(); drawStrip(); }
+    if (now-lastChk > 500) { lastChk=now; renderChecks(); }
+  }
+  requestAnimationFrame(frame); renderLock(); renderReadouts(); renderChecks();
+  return { sample, hello, selftest, reset, startSim, stopSim, simCmd, onShow };
+})();
+
+const startTab = (location.hash||'').slice(1) || LS.get('lab.tab','setup');
+if (TABS.includes(startTab)) showTab(startTab);
+
+$('#bCopyFw').onclick = () => copy($('#fwCode').textContent, 'Firmware sketch');
+navigator.serial?.addEventListener?.('disconnect', e => { if (e.target===S.port || e.port===S.port){ log('warn','serial','Board unplugged'); setConnected(false); pill('#pPort','bad','Unplugged'); S.port=S.transport=S.loader=null; } });
+})();
+</script>
+</body></html>
